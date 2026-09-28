@@ -1,0 +1,6 @@
+dist/
+win-unpacked/
+mac/
+linux/
+.electron/
+public/downloads/AeroLearn-Setup.exe

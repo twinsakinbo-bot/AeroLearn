@@ -1,0 +1,779 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AeroLearn — theme tokens ("Jetstream")
+
+   Every adaptive colour in tailwind.config.js reads one of these variables, so
+   `text-muted` / `bg-surface` / `text-brand` are correct in both themes with no
+   `dark:` at the call site. Change a value here and it propagates to all ~500
+   call sites across the product.
+
+   The palette is the logo's: navy identity, orange energy, aqua for the third
+   note. An earlier pass ran everything in violet, which was loud but matched
+   nothing on the page — the mark at the top left is navy and orange, so the
+   product is navy and orange. Loud enough for a fourteen-year-old revising for
+   WAEC, and every text token still clears AA on its own background. Those two
+   goals are not in conflict — they just take more care than picking a bright
+   colour and hoping.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@layer base {
+  :root {
+    color-scheme: light;
+
+    /* ── Surfaces ─────────────────────────────────────────────────────────── */
+    --color-bg:             245 247 252;  /* #F5F7FC  navy-white            */
+    --color-surface:        255 255 255;  /* #FFFFFF                        */
+    --color-surface-hover:  239 243 251;  /* #EFF3FB                        */
+    --color-surface-sunken: 233 238 248;  /* #E9EEF8                        */
+    --color-surface-raised: 255 255 255;  /* #FFFFFF                        */
+
+    /* ── Text ─────────────────────────────────────────────────────────────── */
+    /* Three steps, and all three clear AA for body copy — 16.1 / 6.9 / 4.6 on
+       --color-bg. The previous ramp had to document its third step as
+       "large text only", which in practice meant every eyebrow and caption on
+       the site was below AA. Fixed by darkening, not by deleting the step. */
+    --color-fg:      16  26  51;   /* #101A33  navy-black  16.1:1           */
+    --color-muted:   74  85 112;   /* #4A5570   6.9:1                       */
+    --color-subtle: 100 112 139;   /* #64708B   4.6:1                       */
+
+    /* ── Lines + focus ────────────────────────────────────────────────────── */
+    --color-hairline: 221 228 242; /* #DDE4F2  rendered 2px at most sites   */
+    --color-ring:      36  69 174; /* #2445AE  brand-600                    */
+
+    /* ── Semantic ─────────────────────────────────────────────────────────── */
+    /* These are *text* shades. `bg-brand-600` is the button fill; `text-brand`
+       has to clear AA on a near-white page, so it sits a step darker. */
+    --color-brand:    27  60 140;  /* #1B3C8C  the logo navy, 9.5:1 as text */
+    --color-primary:  36  69 174;  /* #2445AE  the action fill              */
+    --color-accent:  174  58  12;  /* #AE3A0C  5.8:1 — the logo orange, one
+                                      step down, because #F2621E as text is
+                                      3.4:1 and unusable for copy            */
+    --color-success:   6 144  99;  /* #069063                               */
+    --color-warn:    149  84   8;  /* #965408                               */
+    --color-danger:  188   9  62;  /* #BC093E  6.1:1                        */
+
+    /* ── Gamification ─────────────────────────────────────────────────────── */
+    /* One step darker than the fills they sit next to: flame-600 is 3.8:1 and
+       gold-600 is 3.0:1 as text, which is fine for an icon and wrong for the
+       number beside it. */
+    --color-streak:  199  34   6;  /* #C72206  flame-700  5.4:1             */
+    --color-xp:      160  92   8;  /* #A05C08  gold-700   4.9:1             */
+    --color-gem:       7 107 135;  /* #076B87  gem-700    5.7:1             */
+
+    /* Shadows are navy-tinted in light mode; see `tint()` in the config. */
+    --shadow-tint: 20 40 100;
+  }
+}
+
+@layer base {
+  /* Inverted, not merely darkened. Every value below was checked against
+     --color-bg, and the weakest is --color-subtle at 5.3:1 — so unlike the
+     previous ramp, there is no token here that body copy may not use. */
+  .dark {
+    color-scheme: dark;
+
+    --color-bg:             11  18  32;   /* #0B1220  navy-black            */
+    --color-surface:        18  26  46;   /* #121A2E                        */
+    --color-surface-hover:  27  37  64;   /* #1B2540                        */
+    --color-surface-sunken:  7  12  23;   /* #070C17                        */
+    --color-surface-raised: 27  37  64;   /* #1B2540                        */
+
+    --color-fg:     238 242 251;   /* #EEF2FB  16.7:1  not pure white       */
+    --color-muted:  157 169 198;   /* #9DA9C6   8.0:1                       */
+    --color-subtle: 124 136 168;   /* #7C88A8   5.3:1                       */
+
+    --color-hairline: 37  49  79;  /* #25314F                               */
+    --color-ring:    143 173 240;  /* #8FADF0  brand-300                    */
+
+    /* brand-600 is invisible on a near-black page, so text lifts to 300 and
+       the action fill lifts to 400 (which then takes dark text, not white). */
+    --color-brand:   143 173 240;  /* #8FADF0   8.4:1                       */
+    --color-primary:  93 133 228;  /* #5D85E4  the action fill              */
+    --color-accent:  255 161 118;  /* #FFA176   9.5:1                       */
+    --color-success: 102 226 172;  /* #66E2AC  11.9:1                       */
+    --color-warn:    255 204  61;  /* #FFCC3D  12.8:1                       */
+    --color-danger:  255 155 176;  /* #FF9BB0   9.5:1                       */
+
+    --color-streak:  255 160 112;  /* #FFA070  flame-300                    */
+    --color-xp:      255 220  71;  /* #FFDC47  gold-300                     */
+    --color-gem:      99 217 246;  /* #63D9F6  gem-300                      */
+
+    /* A tinted shadow on a near-black page reads as fog, not depth. */
+    --shadow-tint: 0 0 0;
+  }
+}
+
+@layer base {
+  * {
+    border-color: rgb(var(--color-hairline));
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    color: rgb(var(--color-fg));
+    background-color: rgb(var(--color-bg));
+    overflow-x: hidden;
+    @apply antialiased;
+    font-feature-settings: "cv11", "ss01";
+    font-variant-ligatures: contextual;
+  }
+
+  /* Ambient mesh. The previous version was tuned to "register as depth, not as
+     decoration you can point at" — which is exactly the restraint that made the
+     product read as boring to its actual audience. It is now decoration you can
+     point at: three blobs, roughly 3× the old alpha. Still behind everything at
+     z-index -1, still pointer-events:none, so it can never eat a click. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(ellipse 62% 48% at 10% -10%, rgb( 55  96 206 / 0.16) 0%, transparent 64%),
+      radial-gradient(ellipse 54% 42% at 92%  0%,  rgb(242  98  30 / 0.13) 0%, transparent 60%),
+      radial-gradient(ellipse 46% 34% at 68% 104%, rgb( 24 200 232 / 0.10) 0%, transparent 62%);
+  }
+
+  .dark body::before {
+    background-image:
+      radial-gradient(ellipse 62% 48% at 10% -10%, rgb( 93 133 228 / 0.26) 0%, transparent 64%),
+      radial-gradient(ellipse 54% 42% at 92%  0%,  rgb(242  98  30 / 0.16) 0%, transparent 60%),
+      radial-gradient(ellipse 46% 34% at 68% 104%, rgb( 24 200 232 / 0.12) 0%, transparent 62%);
+  }
+}
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-extrabold tracking-tight text-foreground;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Numerals that change in place — score, streak, XP — must not reflow. */
+  [data-numeral] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One focus treatment for the whole product. Keyboard users get a ring, mouse
+     users don't, and no page has to remember to add it. Thicker and violet now,
+     so it survives on top of the louder surfaces. */
+  :focus-visible {
+    outline: 3px solid rgb(var(--color-ring));
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+
+  ::selection {
+    background-color: rgb(var(--color-brand) / 0.22);
+    color: rgb(var(--color-fg));
+  }
+
+  /* Respect the OS setting instead of animating regardless. Note this kills the
+     3D button press travel too, which is correct: the travel is animation. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Component layer
+
+   Every class name from the previous design is kept, because ~500 call sites
+   reference them. What changed is what they render: 2px borders instead of 1px,
+   a rounder radius scale, and — the one that carries the whole redesign — hard
+   4px bottom edges on anything pressable, so a button behaves like a physical
+   key that travels when you push it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── Layout ─────────────────────────────────────────────────────────────── */
+
+  /** Page gutter. Every marketing section should sit inside one of these. */
+  .container-page {
+    @apply mx-auto w-full max-w-content px-5 sm:px-6 lg:px-8;
+  }
+
+  .container-narrow {
+    @apply mx-auto w-full max-w-3xl px-5 sm:px-6;
+  }
+
+  /** Standard marketing section rhythm. */
+  .section {
+    @apply py-16 sm:py-20 lg:py-section;
+  }
+
+  .section-lg {
+    @apply py-20 sm:py-24 lg:py-section-lg;
+  }
+
+  /** Adaptive rule. Use instead of border-gray-100. */
+  .hairline {
+    @apply border-hairline;
+  }
+
+  .divider {
+    @apply h-0.5 w-full rounded-full bg-hairline;
+  }
+
+  /** Uppercase eyebrow above a heading. Now a pill, not bare text. */
+  .eyebrow {
+    @apply inline-flex items-center gap-1.5 rounded-full border-2 border-brand/20
+           bg-brand/[0.07] px-3 py-1 text-overline uppercase text-brand;
+  }
+}
+
+@layer components {
+
+  /* ── Cards ──────────────────────────────────────────────────────────────── */
+
+  .card {
+    @apply rounded-xl border-2 border-hairline bg-surface transition-all duration-200;
+  }
+
+  .card-interactive {
+    @apply card cursor-pointer hover:-translate-y-1 hover:border-brand/40 hover:shadow-lg;
+  }
+
+  /** The chunky variant: a card that sits on a solid edge like a button does.
+      Use for anything the student picks from a set — subjects, lesson groups. */
+  .card-chunky {
+    @apply rounded-2xl border-2 border-hairline bg-surface shadow-pop-surface
+           transition-all duration-150;
+  }
+  .card-chunky:hover {
+    @apply -translate-y-0.5 border-brand/40;
+    box-shadow: 0 5px 0 0 rgb(var(--color-brand) / 0.35);
+  }
+
+  /* Legacy name, same treatment as .card. */
+  .card-premium {
+    @apply rounded-xl border-2 border-hairline bg-surface transition-all duration-200;
+  }
+  .card-premium:hover {
+    @apply -translate-y-0.5 shadow-md;
+  }
+
+  .card-glass {
+    background-color: rgb(var(--color-surface) / 0.74);
+    @apply rounded-2xl border-2 border-hairline shadow-sm backdrop-blur-xl
+           transition-all duration-200;
+  }
+  .card-glass:hover {
+    @apply shadow-md;
+  }
+
+  /** Inverted panel — the one place a hard dark surface is wanted in light. */
+  .card-invert {
+    @apply rounded-2xl border-2 border-white/10 bg-ink-950 text-ink-100 shadow-lg;
+  }
+  .dark .card-invert {
+    @apply border-hairline bg-surface-raised text-foreground;
+  }
+}
+
+@layer components {
+
+  /* ── Buttons ────────────────────────────────────────────────────────────── */
+
+  /**
+   * The 3D key — the single detail that carries this redesign.
+   *
+   * `--pop-depth` is both the height of the solid bottom edge and the distance
+   * the button travels when pressed, so the two can never drift apart. Variants
+   * set `--pop-color`; the mechanics all live here.
+   *
+   * The hover/press states are written as one grouped rule further down rather
+   * than inside `.btn`, because call sites write `className="btn-primary"` on
+   * its own — `@apply btn` copies declarations, not pseudo-class rules.
+   */
+  .btn {
+    --pop-depth: 4px;
+    --pop-color: transparent;
+    @apply relative inline-flex shrink-0 select-none items-center justify-center gap-2
+           whitespace-nowrap rounded-md border-2 border-transparent px-5 py-2.5
+           text-body-sm font-extrabold leading-none
+           transition-[transform,box-shadow,background-color,border-color,color]
+           duration-100 ease-pop
+           disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none;
+    box-shadow: 0 var(--pop-depth) 0 0 var(--pop-color);
+  }
+
+  /** Primary action. Navy in both themes — one per view. 8.3:1 on white. */
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-500;
+    --pop-color: #16295C;
+  }
+  .dark .btn-primary {
+    @apply bg-brand-400 text-ink-950 hover:bg-brand-300;
+    --pop-color: #1B3C8C;
+  }
+
+  /** Secondary action — bordered, sits on any surface, keeps its edge. */
+  .btn-secondary {
+    @apply btn border-hairline bg-surface text-foreground hover:bg-surface-hover;
+    --pop-color: rgb(var(--color-hairline));
+  }
+
+  /** Tertiary — no chrome until hover, and no travel (it has no edge). */
+  .btn-ghost {
+    @apply btn text-muted hover:bg-surface-hover hover:text-foreground;
+  }
+
+  /** Destructive. Hover goes *darker* here: danger-500 under white text is
+      3.8:1, which is the kind of detail that quietly fails an audit. */
+  .btn-danger {
+    @apply btn bg-danger-600 text-white hover:bg-danger-700;
+    --pop-color: #9D0B3A;
+  }
+  .dark .btn-danger {
+    @apply bg-danger-400 text-ink-950 hover:bg-danger-300;
+    --pop-color: #BC093E;
+  }
+
+  /** "Correct — continue." Bright mint with dark text: 8.8:1, where the
+      conventional white-on-bright-green would have been 2.7:1. */
+  .btn-success {
+    @apply btn bg-success-400 text-ink-950 hover:bg-success-300;
+    --pop-color: #069063;
+  }
+
+  /** Rewards, XP claims, "collect". */
+  .btn-gold {
+    @apply btn bg-gold-400 text-ink-950 hover:bg-gold-300;
+    --pop-color: #C97F04;
+  }
+
+  /** Streak actions only. Loud on purpose, so ration it. */
+  .btn-flame {
+    @apply btn bg-flame-500 text-ink-950 hover:bg-flame-400;
+    --pop-color: #C72206;
+  }
+
+  /** The brand's other half. Orange carries the energy, so this is the button
+      for "start", "continue", "claim" — anywhere navy would feel too formal.
+      Dark text, not white: white on accent-500 is 3.0:1, ink-950 is 5.6:1. */
+  .btn-accent {
+    @apply btn bg-accent-500 text-ink-950 hover:bg-accent-400;
+    --pop-color: #8C3110;
+  }
+
+  /** Spend-gems actions. Aqua-500 with dark text is 6.4:1; white on 600 is
+      4.1:1, which is the version that looks fine and fails. */
+  .btn-gem {
+    @apply btn bg-gem-500 text-ink-950 hover:bg-gem-400;
+    --pop-color: #076B87;
+  }
+
+  /* Legacy names, kept because call sites reference them. Both are the
+     primary button now — there is no separate "premium" treatment. */
+  .btn-premium {
+    @apply btn bg-brand-600 text-white hover:bg-brand-500;
+    --pop-color: #16295C;
+  }
+  .dark .btn-premium {
+    @apply bg-brand-400 text-ink-950 hover:bg-brand-300;
+    --pop-color: #1B3C8C;
+  }
+
+  /** Same button, plus a coloured halo on hover. The halo is passed to the
+      grouped hover rule as `--pop-glow` rather than set here, because that
+      rule has higher specificity and would otherwise clobber it. */
+  .btn-primary-glow {
+    @apply btn bg-brand-600 text-white hover:bg-brand-500;
+    --pop-color: #16295C;
+    --pop-glow: 0 0 28px 0 rgb( 36  69 174 / 0.55);
+  }
+  .dark .btn-primary-glow {
+    @apply bg-brand-400 text-ink-950 hover:bg-brand-300;
+    --pop-color: #1B3C8C;
+    --pop-glow: 0 0 28px 0 rgb( 93 133 228 / 0.45);
+  }
+
+  /* Size modifiers come *after* the variants on purpose: each variant's
+     `@apply btn` re-declares `--pop-depth`, so a size defined earlier would be
+     overwritten by whichever variant appears later in the file. */
+  .btn-sm    { @apply gap-1.5 rounded-sm px-3.5 py-2 text-caption; --pop-depth: 3px; }
+  .btn-lg    { @apply gap-2.5 rounded-lg px-7 py-3.5 text-body;    --pop-depth: 5px; }
+  .btn-xl    { @apply gap-3 rounded-lg px-9 py-4 text-body-lg;     --pop-depth: 6px; }
+  .btn-block { @apply w-full; }
+
+  /** Ghost has no visible edge, so it must not travel. Declared after the size
+      modifiers so `btn-ghost btn-sm` cannot reintroduce the drop. */
+  .btn-ghost { --pop-depth: 0px; }
+
+  /**
+   * The press. `@apply btn` inside each variant carries these two rules along
+   * and rewrites the selector, so `.btn-primary:active` exists without the
+   * variant having to opt in — which is why there is no list of variant names
+   * to keep in sync here.
+   */
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow:
+      0 calc(var(--pop-depth) + 1px) 0 0 var(--pop-color),
+      var(--pop-glow, 0 0 #0000);
+  }
+
+  /* Travels the full depth and loses its edge, so the key bottoms out. */
+  .btn:active:not(:disabled) {
+    transform: translateY(var(--pop-depth));
+    box-shadow: 0 0 0 0 var(--pop-color);
+  }
+
+  /** Any non-button element that should feel like a key. Set `--pop-color`. */
+  .press {
+    --pop-depth: 4px;
+    --pop-color: rgb(var(--color-hairline));
+    box-shadow: 0 var(--pop-depth) 0 0 var(--pop-color);
+    @apply transition-[transform,box-shadow] duration-100 ease-pop;
+  }
+  .press:active:not(:disabled) {
+    transform: translateY(var(--pop-depth));
+    box-shadow: 0 0 0 0 var(--pop-color);
+  }
+}
+
+@layer components {
+
+  /* ── Form fields ────────────────────────────────────────────────────────── */
+
+  .field-label {
+    @apply mb-2 block text-body-sm font-extrabold text-foreground;
+  }
+
+  .field-hint {
+    @apply mt-1.5 text-caption text-muted;
+  }
+
+  .field-error {
+    @apply mt-1.5 flex items-center gap-1.5 text-caption font-bold text-danger;
+  }
+
+  /** 2px border and a 10px radius, so a field reads as the same family as the
+      buttons instead of as a browser default someone forgot to style. */
+  .input-premium {
+    @apply w-full rounded-sm border-2 border-hairline bg-surface px-4 py-3
+           text-body font-medium text-foreground placeholder:font-normal
+           placeholder:text-subtle
+           transition-[border-color,box-shadow] duration-150
+           focus:outline-none;
+  }
+  .input-premium:focus {
+    border-color: rgb(var(--color-ring));
+    box-shadow: 0 0 0 4px rgb(var(--color-ring) / 0.18);
+  }
+  .input-premium:disabled {
+    @apply cursor-not-allowed bg-surface-sunken text-muted;
+  }
+  .input-premium[aria-invalid="true"] {
+    border-color: rgb(var(--color-danger));
+  }
+  .input-premium[aria-invalid="true"]:focus {
+    box-shadow: 0 0 0 4px rgb(var(--color-danger) / 0.18);
+  }
+
+  .select-premium {
+    @apply input-premium cursor-pointer appearance-none bg-no-repeat pr-11;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B658C' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.85rem center;
+  }
+}
+
+@layer components {
+
+  /* ── Badges + chips ─────────────────────────────────────────────────────── */
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border-2 px-2.5 py-1
+           text-caption font-extrabold;
+  }
+
+  .badge-neutral { @apply badge border-hairline bg-surface-sunken text-muted; }
+  .badge-brand   { @apply badge border-brand/25 bg-brand/10 text-brand; }
+  .badge-accent  { @apply badge border-accent/25 bg-accent/10 text-accent; }
+  .badge-success { @apply badge border-success/25 bg-success/10 text-success; }
+  .badge-warn    { @apply badge border-warn/25 bg-warn/10 text-warn; }
+  .badge-danger  { @apply badge border-danger/25 bg-danger/10 text-danger; }
+  .badge-streak  { @apply badge border-streak/25 bg-streak/10 text-streak; }
+  .badge-xp      { @apply badge border-xp/30 bg-xp/10 text-xp; }
+  .badge-gem     { @apply badge border-coin/25 bg-coin/10 text-coin; }
+
+  /* Legacy name. */
+  .badge-pro {
+    @apply inline-flex items-center gap-1 rounded-full border-2 border-brand/30
+           bg-brand/10 px-2.5 py-0.5 text-overline uppercase text-brand;
+  }
+
+  /* ── Links + text treatments ────────────────────────────────────────────── */
+
+  .link {
+    @apply font-extrabold text-accent underline-offset-4 hover:underline;
+  }
+
+  /** Inline link inside body copy — underlined by default, as links should be. */
+  .link-inline {
+    @apply font-bold text-accent underline decoration-2 decoration-accent/40
+           underline-offset-[3px] transition-colors hover:decoration-accent;
+  }
+
+  /** Nav / footer link. */
+  .link-quiet {
+    @apply font-semibold text-muted transition-colors hover:text-foreground;
+  }
+
+  /** Headline gradient. Navy → aqua, not navy → orange: interpolating between
+      complementary hues in sRGB passes through a muddy mauve at the midpoint,
+      which is how a gradient ends up looking like the purple we just removed.
+      `gem` is borrowed here purely as a colour, not as a currency signal. */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-700 via-brand-500 to-gem-500
+           bg-clip-text text-transparent;
+  }
+  .dark .text-gradient {
+    @apply from-brand-300 via-brand-200 to-gem-300;
+  }
+}
+
+@layer components {
+
+  /* ── Gamification chrome ────────────────────────────────────────────────────
+     These are new classes, so they set their own convention: a base class plus
+     modifiers used together — `class="node node-done"`. Only the base carries
+     the pseudo-class rules, which avoids the grouped-selector list the `.btn-*`
+     family needs for its legacy call sites.
+     ───────────────────────────────────────────────────────────────────────── */
+
+  /** Streak / XP / gem counter in the app header. */
+  .stat-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border-2 border-hairline
+           bg-surface px-3 py-1.5 text-body-sm font-extrabold tabular-nums
+           text-foreground;
+  }
+  .stat-pill-streak { @apply border-streak/30 bg-streak/[0.08] text-streak; }
+  .stat-pill-xp     { @apply border-xp/30 bg-xp/[0.08] text-xp; }
+  .stat-pill-gem    { @apply border-coin/30 bg-coin/[0.08] text-coin; }
+
+  /** A stop on the learning path. 66px is the smallest circle that still takes
+      a 24px icon plus breathing room and clears the 44px touch minimum. */
+  .node {
+    --node-depth: 6px;
+    --node-edge: rgb(var(--color-hairline));
+    @apply relative grid h-[66px] w-[66px] shrink-0 place-items-center rounded-full
+           border-2 border-transparent font-display text-h4 font-extrabold
+           transition-[transform,box-shadow,background-color] duration-100 ease-pop;
+    box-shadow: 0 var(--node-depth) 0 0 var(--node-edge);
+  }
+  .node:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 calc(var(--node-depth) + 2px) 0 0 var(--node-edge);
+  }
+  .node:active:not(:disabled) {
+    transform: translateY(var(--node-depth));
+    box-shadow: 0 0 0 0 var(--node-edge);
+  }
+  .node:disabled { @apply cursor-not-allowed; }
+
+  .node-done   { --node-edge: #067352; @apply bg-success-400 text-ink-950; }
+  .node-active { --node-edge: #16295C; @apply bg-brand-600 text-white; }
+  .node-bonus  { --node-edge: #C97F04; @apply bg-gold-400 text-ink-950; }
+  .node-locked { @apply border-hairline bg-surface-sunken text-subtle; }
+
+  /** The connector between two nodes. */
+  .spine      { @apply mx-auto h-7 w-2 rounded-full bg-hairline; }
+  .spine-done { @apply bg-success-400; }
+}
+
+@layer components {
+
+  /** Progress bar. Track and fill are separate so the fill can animate width
+      without the track's overflow clipping being recomputed. */
+  .progress-track {
+    @apply relative h-4 w-full overflow-hidden rounded-full bg-surface-sunken;
+  }
+  .progress-fill {
+    @apply relative h-full rounded-full bg-brand-500
+           transition-[width] duration-500 ease-out-expo;
+  }
+  /** The glossy cap. Inset both sides so it never touches the rounded end. */
+  .progress-fill::after {
+    content: "";
+    @apply pointer-events-none absolute left-1.5 right-1.5 top-1 h-1 rounded-full
+           bg-white/35;
+  }
+  .progress-fill-xp      { @apply bg-gold-400; }
+  .progress-fill-success { @apply bg-success-400; }
+  .progress-fill-streak  { @apply bg-flame-500; }
+
+  /** Lives / hearts. `.heart-spent` is the used state. */
+  .heart       { @apply h-6 w-6 shrink-0 text-danger-500 transition-all duration-200; }
+  .heart-spent { @apply scale-90 text-subtle opacity-40; }
+
+  /**
+   * A selectable answer in a quiz. States are driven by `data-state` rather
+   * than extra classes, because the parent already tracks one value and
+   * mirroring it into a class list is how the two get out of sync.
+   */
+  .chip-choice {
+    @apply flex w-full items-center gap-3 rounded-lg border-2 border-hairline
+           bg-surface px-4 py-3.5 text-left text-body font-bold text-foreground
+           transition-[transform,box-shadow,background-color,border-color] duration-100
+           ease-pop;
+    box-shadow: 0 3px 0 0 rgb(var(--color-hairline));
+  }
+  .chip-choice:hover:not(:disabled) {
+    @apply border-brand/40 bg-brand/[0.05];
+    box-shadow: 0 4px 0 0 rgb(var(--color-brand) / 0.35);
+  }
+  .chip-choice:active:not(:disabled) {
+    transform: translateY(3px);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  .chip-choice[data-state="picked"] {
+    @apply border-brand bg-brand/10 text-brand;
+    box-shadow: 0 3px 0 0 rgb(var(--color-brand) / 0.5);
+  }
+  .chip-choice[data-state="correct"] {
+    @apply border-success bg-success/10 text-success;
+    box-shadow: 0 3px 0 0 rgb(var(--color-success) / 0.5);
+  }
+  .chip-choice[data-state="wrong"] {
+    @apply border-danger bg-danger/10 text-danger;
+    box-shadow: 0 3px 0 0 rgb(var(--color-danger) / 0.5);
+  }
+  .chip-choice:disabled { @apply cursor-not-allowed; }
+}
+
+@layer components {
+
+  /* ── Long-form copy (legal pages, blog posts) ───────────────────────────── */
+
+  .prose-legal {
+    @apply max-w-prose text-body text-muted;
+  }
+  .prose-legal h2 {
+    @apply mb-3 mt-10 text-h4 font-extrabold text-foreground;
+  }
+  .prose-legal h3 {
+    @apply mb-2 mt-8 text-body-lg font-bold text-foreground;
+  }
+  .prose-legal p { @apply mb-4 leading-relaxed; }
+  .prose-legal ul { @apply mb-4 ml-5 list-disc space-y-2; }
+  .prose-legal ol { @apply mb-4 ml-5 list-decimal space-y-2; }
+  .prose-legal strong { @apply font-bold text-foreground; }
+  .prose-legal a { @apply link-inline; }
+  .prose-legal > section + section {
+    @apply mt-8 border-t-2 border-hairline pt-8;
+  }
+
+  /* ── Loading ────────────────────────────────────────────────────────────── */
+
+  /** The gradient must be wider than the box or `shimmer` has nothing to move
+      across — that is what `background-size: 200%` is doing here. */
+  .skeleton {
+    @apply rounded-sm bg-surface-sunken;
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgb(var(--color-fg) / 0.06) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+
+  /** Decorative faux-UI block used in marketing screenshots. */
+  .bar-mock {
+    @apply rounded-sm bg-surface-sunken;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Utilities
+   ═══════════════════════════════════════════════════════════════════════════ */
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /** Fades the bottom of a scroll container instead of cutting content dead. */
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, black 82%, transparent 100%);
+  }
+
+  /** Opts a subtree out of the ambient mesh so nested panels stay flat. */
+  .bg-flat {
+    background-image: none;
+  }
+
+  /** Numerals that tick upward in place. */
+  .nums-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /** Confetti / sparkle layer. Always paired with `pointer-events-none`. */
+  .layer-fx {
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
+  }
+}
+
+/* ─── Scrollbars ──────────────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-subtle) / 0.45) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--color-subtle) / 0.4);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--color-subtle) / 0.65);
+}
+
+/* ─── Third-party overrides ───────────────────────────────────────────────── */
+
+/* KaTeX inherits body colour so formulas are legible in dark mode. */
+.katex {
+  color: rgb(var(--color-fg));
+}
+
+/* Autofill in Chrome paints its own yellow; force it back onto the palette.
+   The inset shadow has to be large enough to cover the whole field, hence the
+   1000px — there is no `background-color` override that Chrome respects here. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: rgb(var(--color-fg));
+  -webkit-box-shadow: 0 0 0 1000px rgb(var(--color-surface)) inset;
+  caret-color: rgb(var(--color-fg));
+}

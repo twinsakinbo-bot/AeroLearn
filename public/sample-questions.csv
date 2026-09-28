@@ -1,0 +1,13 @@
+exam,year,subject,topic,questionNumber,question,optionA,optionB,optionC,optionD,correctAnswer,explanation,paper,difficulty
+WAEC,2022,Mathematics,Algebra,1,"If x = 3 and y = 4, what is the value of x² + y²?",5,25,17,7,B,"9 + 16 = 25",Paper 1,Medium
+WAEC,2022,Mathematics,Algebra,2,"Solve for m: 2m + 6 = 14",2,3,4,5,C,"2m = 8, so m = 4",Paper 1,Medium
+WAEC,2022,Mathematics,Geometry,3,"What is the area of a circle with radius 7 cm? (π = 22/7)",154,147,22,44,A,"(22/7) × 7 × 7 = 154",Paper 1,Hard
+WAEC,2022,Mathematics,Trigonometry,4,"If sin θ = 0.5 for 0° ≤ θ ≤ 90°, what is θ?",30°,45°,60°,90°,A,"sin 30° = 0.5",Paper 1,Hard
+WAEC,2022,Mathematics,Arithmetic,5,"Simplify: 3/4 + 1/2",5/4,4/6,1/4,3/6,A,"3/4 + 2/4 = 5/4",Paper 1,Medium
+WAEC,2022,Mathematics,Algebra,6,"The sum of three consecutive integers is 54. What is the smallest?",16,17,18,19,A,"n + (n+1) + (n+2) = 54 → 3n + 3 = 54 → n = 17; smallest = 17",Paper 1,Medium
+JAMB,2021,Physics,Mechanics,1,"A car accelerates from rest at 2 m/s² for 5 s. How far does it travel?",25 m,10 m,50 m,100 m,A,"s = ½at² = ½ × 2 × 25 = 25 m",Paper 1,Medium
+JAMB,2021,Physics,Optics,2,"The speed of light in a medium is 2 × 10⁸ m/s. If its speed in vacuum is 3 × 10⁸ m/s, what is the refractive index?",1.5,0.67,1.0,2.0,A,"n = c/v = 3 × 10⁸ / 2 × 10⁸ = 1.5",Paper 1,Hard
+JAMB,2021,Chemistry,Stoichiometry,3,"How many moles of HCl are required to neutralise 0.5 mol of NaOH?",0.25,0.5,1.0,2.0,B,"HCl + NaOH → NaCl + H₂O; 1:1 ratio",Paper 1,Hard
+NECO,2020,Biology,Ecology,1,"Which level of ecological study focuses on a single organism?",Ecosystem,Population,Organism,Community,C,"Organism ecology studies individual organisms",Paper 1,Medium
+NECO,2020,Biology,Genetics,2,"In Mendelian genetics, what does 'Tt' represent?",Homozygous dominant,Heterozygous,Homozygous recessive,Purebred,B,"Tt has different alleles → heterozygous",Paper 1,Medium
+NECO,2020,English Language,Comprehension,3,"Select the antonym of 'ephemeral'?",Temporary,Transient,External,Eternal,D,"Eternal is the opposite of ephemeral",Paper 1,Easy

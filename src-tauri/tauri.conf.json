@@ -1,0 +1,47 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AeroLearn",
+  "version": "1.0.2",
+  "identifier": "com.aerolearn.app",
+  "build": {
+    "beforeDevCommand": "npm --prefix desktop-app run dev -- --host 127.0.0.1",
+    "devUrl": "http://127.0.0.1:5173",
+    "frontendDist": "../desktop-app/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "AeroLearn",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true,
+        "userAgent": "AeroLearn Desktop"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' http://127.0.0.1:5173; script-src 'self' 'unsafe-inline' http://127.0.0.1:5173; style-src 'self' 'unsafe-inline' http://127.0.0.1:5173; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:5173 ws://127.0.0.1:5173 https://*.supabase.co wss://*.supabase.co; font-src 'self' data:;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "targets": ["nsis", "msi"],
+    "category": "Education",
+    "shortDescription": "Your premium AI-powered learning companion",
+    "longDescription": "AeroLearn is an all-in-one learning platform with AI tutoring, smart mock exams, personalized practice, and interactive lessons for Nigerian students.",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  }
+}

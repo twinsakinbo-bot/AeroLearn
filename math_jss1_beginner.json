@@ -1,0 +1,35 @@
+[
+  {
+    "subject": "Mathematics",
+    "classLevel": "JSS 1",
+    "term": "Beginner",
+    "topicTitle": "Whole Numbers",
+    "content": "## Introduction to Whole Numbers\n\nWhole numbers include zero and all positive numbers without fractions or decimals (e.g., 0, 1, 2, 3...). In Mathematics, learning to read, write, and manipulate whole numbers in millions and billions is a foundational skill.\n\n### Place Values\nWhen dealing with large numbers, each digit has a place value based on its position from the right. The periods include Units, Thousands, Millions, and Billions.",
+    "examples": [
+      {
+        "title": "Writing a large number in words",
+        "content": "**Question:** Write 2,450,000 in words.\n\n**Solution:** Two million, four hundred and fifty thousand."
+      },
+      {
+        "title": "Identifying place value",
+        "content": "**Question:** What is the place value of 7 in the number 4,720,000?\n\n**Solution:** The 7 is in the Hundred Thousands position."
+      }
+    ],
+    "homework": [
+      {
+        "exam": "Practice",
+        "year": 2026,
+        "subject": "Mathematics",
+        "question": "What is the place value of 5 in the number 3,500,000?",
+        "options": {
+          "A": "Thousands",
+          "B": "Ten Thousands",
+          "C": "Hundred Thousands",
+          "D": "Millions"
+        },
+        "correctAnswer": "C",
+        "explanation": "Counting from the right: Units, Tens, Hundreds, Thousands, Ten Thousands, Hundred Thousands. Therefore, 5 is in the Hundred Thousands place."
+      }
+    ]
+  }
+]
