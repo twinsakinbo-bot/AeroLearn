@@ -212,14 +212,22 @@ export default function AdminCurriculumPage() {
     })
   }, [rows, needle, classFilter])
 
-  const draftable = filtered.filter((row) => row.needsNotes && !row.hasDraft && row.subject !== "No subject" && row.classLevel !== "No class")
+  const draftable = filtered.filter((row) => !row.hasDraft && row.subject !== "No subject" && row.classLevel !== "No class" && row.topicTitle !== "Untitled topic")
 
   const generateDrafts = async () => {
-    if (!auth.currentUser || draftable.length === 0) return
+    if (draftable.length === 0) {
+      setGenerationStatus("Every visible lesson already has a draft, or no valid lessons are available. Open a draft in the lesson editor to review it.")
+      return
+    }
+    if (!auth.currentUser) {
+      setGenerationStatus("Your sign-in is still loading. Try again in a moment, or sign in again.")
+      return
+    }
     stopGeneration.current = false
     setGenerating(true)
     let completed = 0
     let failed = 0
+    const problems: string[] = []
     try {
       const token = await auth.currentUser.getIdToken()
       for (const row of draftable) {
@@ -239,10 +247,11 @@ export default function AdminCurriculumPage() {
           setRows((previous) => previous.map((lesson) => lesson.id === row.id ? { ...lesson, hasDraft: true } : lesson))
         } catch (cause) {
           failed++
-          setGenerationStatus(`${row.topicTitle}: ${cause instanceof Error ? cause.message : "Generation failed."}`)
+          problems.push(`${row.classLevel} ${row.subject} · ${row.topicTitle}: ${cause instanceof Error ? cause.message : "Generation failed."}`)
+          setGenerationStatus(problems[problems.length - 1])
         }
       }
-      setGenerationStatus(`${completed} draft${completed === 1 ? "" : "s"} ready for review${failed ? ` · ${failed} failed` : ""}${stopGeneration.current ? " · stopped" : ""}.`)
+      setGenerationStatus(`${completed} draft${completed === 1 ? "" : "s"} ready for review${failed ? ` · ${failed} failed. ${problems.slice(0, 3).join(" | ")}` : ""}${stopGeneration.current ? " · stopped" : ""}.`)
     } catch (cause) {
       setGenerationStatus(cause instanceof Error ? cause.message : "Could not start generation.")
     } finally {
@@ -353,14 +362,14 @@ export default function AdminCurriculumPage() {
       <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-hairline bg-surface p-4">
         <Sparkles size={18} className="text-accent" aria-hidden="true" />
         <p className="min-w-48 flex-1 text-body-sm text-muted">
-          Generate original AI note drafts for {classFilter === "all" ? "the visible lessons" : classFilter}. Existing notes stay in place until you review and save each draft.
+          Research NERDC and generate AI note drafts for {classFilter === "all" ? "the visible lessons" : classFilter}. Existing notes stay in place until you review and save each draft.
         </p>
         {generating ? (
           <button type="button" className="btn-secondary btn-sm" onClick={() => { stopGeneration.current = true }}>
             Stop after this lesson
           </button>
         ) : (
-          <button type="button" className="btn-primary btn-sm" onClick={() => void generateDrafts()} disabled={draftable.length === 0 || loading}>
+          <button type="button" className="btn-primary btn-sm" onClick={() => void generateDrafts()} disabled={loading}>
             <Sparkles size={15} aria-hidden="true" />
             Generate {draftable.length} draft{draftable.length === 1 ? "" : "s"}
           </button>
