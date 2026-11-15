@@ -179,8 +179,8 @@ export default function PrivacyPolicyPage() {
         <h2>5. AI features and what reaches them</h2>
         <p>
           The AI tutor, essay grader, flashcard generator, quiz generator and timetable builder work
-          by sending your request to <strong>Groq</strong>, an inference provider, which runs the model
-          and returns the answer.
+          by sending your request to <strong>Aether AI Gateway</strong>, which routes it to an AI
+          provider and returns the answer.
         </p>
         <p>What is sent is limited to what the feature needs:</p>
         <ul>
@@ -194,8 +194,8 @@ export default function PrivacyPolicyPage() {
         </ul>
         <p>
           Your name, email address and school are <strong>not</strong> included in these requests, and
-          no data from your Google sign-in is sent to Groq. We do not use your conversations to train
-          any model, and our agreement with Groq does not permit them to either. Treat AI answers as
+          no data from your Google sign-in is sent to the gateway. We do not use your conversations to train
+          any model. Treat AI answers as
           study help rather than fact: they can be wrong, and they are not a substitute for your
           teacher.
         </p>
@@ -217,7 +217,7 @@ export default function PrivacyPolicyPage() {
             <strong>Vercel</strong> — hosting and content delivery for the website and API.
           </li>
           <li>
-            <strong>Groq</strong> — AI inference for the features in section 5.
+            <strong>Aether AI Gateway and its model providers</strong> — AI inference for the features in section 5.
           </li>
           <li>
             <strong>Resend</strong> — sending transactional email (verification, password reset,

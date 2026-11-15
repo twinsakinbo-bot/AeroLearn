@@ -33,7 +33,7 @@
  * model returned.
  */
 import { NextResponse } from "next/server"
-import Groq from "groq-sdk"
+import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
 
 import { parseAiRows } from "@/lib/ai-json"
 import { requireUser } from "@/lib/api-auth"
@@ -41,10 +41,9 @@ import { CLASS_LEVELS } from "@/lib/constants"
 import { correctLetterOf, optionsOf, questionText, type StoredQuestion } from "@/lib/questions"
 import { clientIp, rateLimit } from "@/lib/rate-limit"
 
-const apiKey = process.env.GROQ_API_KEY || ""
-const groq = new Groq({ apiKey })
+const apiKey = aetherKey
 
-const MODEL = "openai/gpt-oss-20b"
+const MODEL = aetherModel
 const MIN_QUESTIONS = 1
 const MAX_QUESTIONS = 20
 
@@ -149,7 +148,7 @@ function buildPrompt(input: {
  * mid-answer.
  */
 async function ask(prompt: string, maxTokens: number, jsonMode: boolean): Promise<string> {
-  const completion = await groq.chat.completions.create({
+  const completion = await chatCompletion({
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: prompt },
@@ -157,7 +156,6 @@ async function ask(prompt: string, maxTokens: number, jsonMode: boolean): Promis
     model: MODEL,
     temperature: 0.5,
     max_tokens: maxTokens,
-    reasoning_effort: "low",
     ...(jsonMode ? { response_format: { type: "json_object" as const } } : {}),
   })
 

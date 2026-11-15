@@ -8,13 +8,12 @@
  * up a bill either.
  */
 import { NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
+import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
 
 import { requireUser } from '@/lib/api-auth'
 
 // Initialize Groq API
-const apiKey = process.env.GROQ_API_KEY || ""
-const groq = new Groq({ apiKey })
+const apiKey = aetherKey
 
 /** Trimmed to keep a caller from paying for someone else's essay. */
 const cap = (value: unknown, limit: number) => String(value ?? "").slice(0, limit)
@@ -57,9 +56,9 @@ export async function POST(req: Request) {
     Keep your response under 4 sentences. Speak directly to the student in a positive tone. Do not use markdown formatting, just plain text.
     `
 
-    const completion = await groq.chat.completions.create({
+    const completion = await chatCompletion({
       messages: [{ role: "user", content: prompt }],
-      model: "openai/gpt-oss-20b",
+      model: aetherModel,
     });
 
     const aiResponse = completion.choices[0]?.message?.content || "";

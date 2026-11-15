@@ -9,7 +9,6 @@ import {
   arrayUnion,
   collection,
   db,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -77,9 +76,7 @@ import { cn } from "@/lib/utils"
  *    plaintext in Firestore and read by `/api/ai-chat`. That claim is removed; the
  *    placeholder now says what is true.
  * 6. **`deleteConversation` deleted the document for every participant** and orphaned
- *    the `messages` subcollection (a client cannot delete a subcollection). It now
- *    warns that it removes the chat for everyone, and the orphaned-subcollection
- *    problem needs a Cloud Function — noted rather than silently ignored.
+ *    the `messages` subcollection. Leaving now removes only this student's membership.
  *
  * Left alone but worth flagging: `/api/link-preview` has no auth (SSRF), the
  * friends-only rule is enforced only in this file so Firestore rules must repeat it,
@@ -266,16 +263,17 @@ function LinkPreview({ url }: { url: string }) {
 }
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g
+const URL_TEST = /^https?:\/\/[^\s]+$/
 
 function TextWithLinks({ text }: { text: string }) {
   const parts = text.split(URL_PATTERN)
-  const links = parts.filter((part) => URL_PATTERN.test(part))
+  const links = parts.filter((part) => URL_TEST.test(part))
 
   return (
     <span className="flex flex-col">
       <span className="whitespace-pre-wrap break-words">
         {parts.map((part, i) =>
-          URL_PATTERN.test(part) ? (
+          URL_TEST.test(part) ? (
             <a
               key={i}
               href={part}
@@ -343,6 +341,7 @@ export default function MessagesPage() {
   const chunksRef = useRef<Blob[]>([])
   const recordTimerRef = useRef<NodeJS.Timeout | null>(null)
   const activeConvRef = useRef<Conversation | null>(null)
+  const listVersionRef = useRef(0)
 
   activeConvRef.current = activeConv
 
@@ -386,6 +385,7 @@ export default function MessagesPage() {
       convUnsubRef.current = onSnapshot(
         query(collection(db, "conversations"), where("participants", "array-contains", user.uid)),
         async (snapshot) => {
+          const version = ++listVersionRef.current
           const rows = await Promise.all(
             snapshot.docs.map(async (d) => {
               const data = d.data()
@@ -433,12 +433,19 @@ export default function MessagesPage() {
           )
 
           rows.sort((a, b) => (b.updatedAt?.seconds ?? 0) - (a.updatedAt?.seconds ?? 0))
+          if (version !== listVersionRef.current) return
           setConversations(rows)
 
           const current = activeConvRef.current
           if (current) {
             const refreshed = rows.find((c) => c.id === current.id)
             if (refreshed) setActiveConv(refreshed)
+            else {
+              msgUnsubRef.current?.()
+              msgUnsubRef.current = null
+              setActiveConv(null)
+              setMessages([])
+            }
           }
           setLoading(false)
         },
@@ -448,10 +455,10 @@ export default function MessagesPage() {
         },
       )
 
-      setLoading(false)
     })
 
     return () => {
+      listVersionRef.current++
       unsubscribeAuth()
       convUnsubRef.current?.()
       msgUnsubRef.current?.()
@@ -490,7 +497,14 @@ export default function MessagesPage() {
 
   const openConversation = async (conv: Conversation) => {
     if (!uid) return
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    const previous = activeConvRef.current
+    if (previous && previous.id !== conv.id) {
+      updateDoc(doc(db, "conversations", previous.id), { typing: arrayRemove(uid) }).catch(console.error)
+    }
     setActiveConv(conv)
+    setMessages([])
+    setDraft("")
     setShowGroupInfo(false)
     setReplyingTo(null)
     setSearchResults([])
@@ -505,23 +519,36 @@ export default function MessagesPage() {
     if (conv.participants.includes(AI_BOT_ID)) {
       setUserCache((prev) => ({ ...prev, [AI_BOT_ID]: AI_BOT }))
     }
-    cachePeople(conv.participants)
+    void cachePeople(conv.participants)
 
     msgUnsubRef.current?.()
     msgUnsubRef.current = onSnapshot(
       query(collection(db, "conversations", conv.id, "messages"), orderBy("createdAt", "asc")),
       (snap) => {
-        setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)))
+        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message))
+        setMessages(rows)
+        const current = activeConvRef.current
+        if (current?.id === conv.id && current.unreadBy?.includes(uid) && rows.at(-1)?.senderId !== uid) {
+          updateDoc(doc(db, "conversations", conv.id), { unreadBy: arrayRemove(uid) }).catch(console.error)
+        }
       },
-      (error) => console.error("The message thread stopped updating:", error),
+      (error) => {
+        console.error("The message thread stopped updating:", error)
+        setBanner({ tone: "error", text: "This chat stopped updating. Open it again to retry." })
+      },
     )
   }
 
   const closeConversation = () => {
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    if (uid && activeConvRef.current) {
+      updateDoc(doc(db, "conversations", activeConvRef.current.id), { typing: arrayRemove(uid) }).catch(console.error)
+    }
     msgUnsubRef.current?.()
     msgUnsubRef.current = null
     setActiveConv(null)
     setMessages([])
+    setDraft("")
     setShowGroupInfo(false)
     setReplyingTo(null)
   }
@@ -544,7 +571,7 @@ export default function MessagesPage() {
     }
 
     try {
-      await addDoc(collection(db, "conversations"), {
+      const created = await addDoc(collection(db, "conversations"), {
         participants: [uid, person.id],
         type: "direct",
         lastMessage: "",
@@ -554,6 +581,7 @@ export default function MessagesPage() {
       })
       setSearch("")
       setSearchResults([])
+      await openConversation({ id: created.id, participants: [uid, person.id], type: "direct", displayName: person.displayName, displayPhoto: person.photoURL, unreadBy: [], typing: [] })
     } catch (error) {
       console.error("Failed to start the chat:", error)
       setBanner({ tone: "error", text: "That chat did not open. Try again." })
@@ -594,7 +622,8 @@ export default function MessagesPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ ...payload, senderId: uid, conversationId: conv.id }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.reply) throw new Error(data.error || "The assistant did not reply.")
       if (data.reply) {
         await addDoc(collection(db, "conversations", conv.id, "messages"), {
           senderId: AI_BOT_ID,
@@ -612,6 +641,7 @@ export default function MessagesPage() {
       }
     } catch (error) {
       console.error("The assistant did not reply:", error)
+      setBanner({ tone: "error", text: "The assistant could not reply. Please try again." })
       updateDoc(convRef, { typing: arrayRemove(AI_BOT_ID) }).catch(() => {})
     }
   }
@@ -627,6 +657,7 @@ export default function MessagesPage() {
     setShowEmoji(false)
     const quoted = replyingTo
     setReplyingTo(null)
+    let stored = false
 
     try {
       await addDoc(collection(db, "conversations", conv.id, "messages"), {
@@ -636,6 +667,7 @@ export default function MessagesPage() {
         replyTo: quoted?.id ?? null,
         ...(mediaUrl ? { mediaUrl, mediaType: "image" } : {}),
       })
+      stored = true
 
       const summary = mediaUrl ? "📷 Image" : text
       await updateDoc(doc(db, "conversations", conv.id), {
@@ -646,12 +678,17 @@ export default function MessagesPage() {
       })
 
       if (conv.participants.includes(AI_BOT_ID)) {
-        askBot(conv, { message: text, mediaUrl })
+        void askBot(conv, { message: text, mediaUrl, mediaType: mediaUrl ? "image" : undefined })
       }
     } catch (error) {
       console.error("Failed to send:", error)
-      setDraft(text)
-      setBanner({ tone: "error", text: "That message did not send. Try again." })
+      if (!stored) {
+        setDraft(text)
+        setReplyingTo(quoted)
+      }
+      setBanner({ tone: "error", text: stored
+        ? "Message sent, but the conversation summary did not update. Do not resend it."
+        : "That message did not send. Try again." })
     } finally {
       setSending(false)
     }
@@ -691,7 +728,7 @@ export default function MessagesPage() {
         unreadBy: conv.participants.filter((p) => p !== uid),
       })
       if (conv.participants.includes(AI_BOT_ID)) {
-        askBot(conv, {
+        void askBot(conv, {
           message: "Transcribe and respond to this voice note",
           mediaUrl: url,
           mediaType: "audio",
@@ -894,17 +931,21 @@ export default function MessagesPage() {
     }
   }
 
-  /* Deletes the thread for everyone, and the `messages` subcollection is left behind —
-     a client cannot delete a subcollection, so this needs a Cloud Function to finish
-     the job. The wording below at least tells the student what actually happens. */
+  /* Leaving a thread changes only this student's membership. Other participants
+     keep their messages, and no orphaned message rows are created. */
   const deleteConversation = async () => {
     if (!activeConv || !uid) return
     const confirmed = confirm(
-      "Delete this chat for everyone in it? The messages cannot be recovered.",
+      "Leave this chat? It will disappear from your conversations.",
     )
     if (!confirmed) return
     try {
-      await deleteDoc(doc(db, "conversations", activeConv.id))
+      await updateDoc(doc(db, "conversations", activeConv.id), {
+        participants: arrayRemove(uid),
+        unreadBy: arrayRemove(uid),
+        typing: arrayRemove(uid),
+        ...(activeConv.type === "group" ? { admins: arrayRemove(uid) } : {}),
+      })
       closeConversation()
     } catch (error) {
       console.error("Failed to delete the chat:", error)
@@ -1233,7 +1274,7 @@ export default function MessagesPage() {
                   <button
                     type="button"
                     onClick={deleteConversation}
-                    aria-label="Delete this chat"
+                    aria-label="Leave this chat"
                     className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger/[0.08] hover:text-danger"
                   >
                     <Trash2 size={18} aria-hidden="true" />

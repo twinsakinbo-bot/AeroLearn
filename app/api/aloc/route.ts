@@ -75,6 +75,17 @@ function pick(source: Record<string, unknown>, ...keys: string[]): string {
   return ""
 }
 
+function imageUrl(source: Record<string, unknown>): string | null {
+  const raw = pick(source, "image", "imageUrl", "image_url", "diagram", "figure")
+  if (!raw) return null
+  try {
+    const url = new URL(raw)
+    return url.protocol === "https:" ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * ALOC gives the answer as the option letter, lowercase. Anything else — an
  * empty string, "nil", the answer text spelled out — means the key is unknown,
@@ -114,7 +125,9 @@ function convert(
   }
   const source = raw as Record<string, unknown>
 
+  const sharedInstruction = pick(source, "instruction", "instructions", "passage", "comprehension", "direction", "directions")
   const text = meaningful(source.question)
+  const diagram = imageUrl(source)
   const label = text ? text.slice(0, 90) : "—"
   if (!text) {
     return { skip: { question: label, reason: "The question text was empty." } }
@@ -174,7 +187,13 @@ function convert(
       year,
       subject: requested.subject,
       topic: meaningful(source.section) || undefined,
-      question: text,
+      /* ALOC sometimes stores the common passage outside each item. Keep the
+         context with every question so randomised practice stays answerable. */
+      question: (sharedInstruction && !text.includes(sharedInstruction)
+        ? `${sharedInstruction}\n\n${text}`
+        : text) + (diagram && !text.includes(diagram)
+          ? `\n\n<img src="${diagram.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" alt="Question diagram" />`
+          : ""),
       options,
       correctAnswer,
       /* Left unset rather than "No explanation provided." — the question bank

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import Groq from "groq-sdk"
+import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
 
 import { getAdminAuth, getAdminDb } from "@/lib/db-admin"
 import { isPaidPlan } from "@/lib/plans"
@@ -17,8 +17,7 @@ import { isPaidPlan } from "@/lib/plans"
 const MAX_IMAGE_CHARS = 7_500_000
 const MAX_QUESTION_CHARS = 2_000
 
-const apiKey = process.env.GROQ_API_KEY || ""
-const groq = new Groq({ apiKey })
+const apiKey = aetherKey
 
 /**
  * Mirrors `isProUser` in lib/subscription, which cannot be imported here.
@@ -115,7 +114,7 @@ WAEC standard marking scheme, and reply in Markdown exactly in this shape:
 ### Transcription
 [What you read from their handwriting, so they can see if you misread a word.]`
 
-    const completion = await groq.chat.completions.create({
+    const completion = await chatCompletion({
       messages: [
         {
           role: "user",
@@ -125,11 +124,9 @@ WAEC standard marking scheme, and reply in Markdown exactly in this shape:
           ],
         },
       ],
-      model: "llama-3.2-11b-vision-preview",
+      model: aetherVisionModel,
       temperature: 0.5,
       max_tokens: 1024,
-      top_p: 1,
-      stream: false,
     })
 
     const result = completion.choices[0]?.message?.content || ""

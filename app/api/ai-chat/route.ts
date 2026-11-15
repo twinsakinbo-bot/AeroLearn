@@ -22,13 +22,12 @@
  * decision about cost and quality, not a bug fix.
  */
 import { NextResponse } from "next/server"
-import Groq from "groq-sdk"
+import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
 
 import { requireUser } from "@/lib/api-auth"
 import { FetchRefused, safeFetch } from "@/lib/safe-fetch"
 
-const apiKey = process.env.GROQ_API_KEY || ""
-const groq = new Groq({ apiKey })
+const apiKey = aetherKey
 
 /** A voice note that does not fit in this is not a voice note. */
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024
@@ -73,11 +72,7 @@ export async function POST(req: Request) {
       try {
         const audio = await safeFetch(mediaUrl, { maxBytes: MAX_AUDIO_BYTES, timeoutMs: 10000 })
         const file = new File([audio.bytes], "audio.webm", { type: "audio/webm" })
-        const transcription = await groq.audio.transcriptions.create({
-          file,
-          model: "distil-whisper-large-v3-en",
-        })
-        transcribedText = transcription.text
+        transcribedText = await transcribeAudio(file)
       } catch (error) {
         if (error instanceof FetchRefused) {
           return NextResponse.json({ error: error.message }, { status: error.status })
@@ -114,9 +109,9 @@ export async function POST(req: Request) {
     }
 
     const isImage = Boolean(mediaUrl) && mediaType !== "audio"
-    const model = isImage ? "llama-3.2-11b-vision-preview" : "openai/gpt-oss-120b"
+    const model = isImage ? aetherVisionModel : aetherModel
 
-    const completion = await groq.chat.completions.create({
+    const completion = await chatCompletion({
       messages: isImage
         ? [
             {

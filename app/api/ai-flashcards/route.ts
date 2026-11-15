@@ -14,22 +14,21 @@
  * a long lesson had no room to answer in.
  */
 import { NextResponse } from "next/server"
-import Groq from "groq-sdk"
+import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
 
 import { parseAiRows } from "@/lib/ai-json"
 import { requireUser } from "@/lib/api-auth"
 import { clientIp, rateLimit } from "@/lib/rate-limit"
 
 const MAX_CONTENT_CHARS = 15_000
-const MODEL = "openai/gpt-oss-20b"
+const MODEL = aetherModel
 const CARD_COUNT = 10
 const MAX_TOKENS = 4_000
 
 /** Where a wrapped array hides: JSON mode can only return an object. */
 const ROW_KEYS = ["flashcards", "cards", "terms", "items", "data"]
 
-const apiKey = process.env.GROQ_API_KEY || ""
-const groq = new Groq({ apiKey })
+const apiKey = aetherKey
 
 const SYSTEM =
   "You write revision flashcards for Nigerian secondary school students. You " +
@@ -87,7 +86,7 @@ function buildPrompt(content: string): string {
 }
 
 async function ask(prompt: string, jsonMode: boolean): Promise<string> {
-  const completion = await groq.chat.completions.create({
+  const completion = await chatCompletion({
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: prompt },
@@ -95,7 +94,6 @@ async function ask(prompt: string, jsonMode: boolean): Promise<string> {
     model: MODEL,
     temperature: 0.4,
     max_tokens: MAX_TOKENS,
-    reasoning_effort: "low",
     ...(jsonMode ? { response_format: { type: "json_object" as const } } : {}),
   })
 

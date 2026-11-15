@@ -140,17 +140,51 @@ export default function AlocSyncPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [result, setResult] = useState<ImportResponse | null>(null)
+  const [reviewIssues, setReviewIssues] = useState<{ index: number; reason: string }[]>([])
+  const [reviewed, setReviewed] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
 
   const rows = useMemo<QuestionPreviewRow[]>(
-    () => questions.map((question) => ({ question })),
-    [questions],
+    () => questions.map((question, index) => ({
+      question,
+      errors: reviewIssues.filter((issue) => issue.index === index).map((issue) => ({
+        row: index, field: "AI review", message: issue.reason, severity: "warning" as const,
+      })),
+    })),
+    [questions, reviewIssues],
   )
+
+  const review = async (batch: PracticeQuestion[]) => {
+    if (!auth.currentUser || batch.length === 0) return
+    setError("")
+    setReviewing(true)
+    setReviewed(false)
+    setReviewIssues([])
+    try {
+      const idToken = await auth.currentUser.getIdToken()
+      const response = await fetch("/api/aloc/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ questions: batch }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "AI review failed.")
+      setReviewIssues(data.issues ?? [])
+      setReviewed(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "AI review failed.")
+    } finally {
+      setReviewing(false)
+    }
+  }
 
   const reset = () => {
     setStep("setup")
     setQuestions([])
     setSkipped([])
     setResult(null)
+    setReviewIssues([])
+    setReviewed(false)
     setError("")
   }
 
@@ -195,6 +229,7 @@ export default function AlocSyncPage() {
         )
       }
       setStep("preview")
+      if (fetched.length > 0) void review(fetched)
     } catch (cause) {
       console.error("Failed to fetch from ALOC:", cause)
       setError(cause instanceof Error ? cause.message : "ALOC could not be reached.")
@@ -208,7 +243,7 @@ export default function AlocSyncPage() {
       setError("Your session has expired. Sign in again before importing.")
       return
     }
-    if (questions.length === 0) return
+    if (questions.length === 0 || !reviewed || reviewIssues.length > 0) return
 
     setStep("importing")
     setError("")
@@ -451,6 +486,22 @@ export default function AlocSyncPage() {
           )}
 
           {questions.length > 0 && (
+            <section className="card p-5" aria-live="polite">
+              <h3 className="text-body-sm font-semibold text-foreground">AI question review</h3>
+              <p className="mt-1 text-caption text-muted">
+                {reviewing ? "Checking diagrams, shared instructions, and linked questions…" :
+                  reviewed ? reviewIssues.length > 0
+                    ? `${reviewIssues.length} question(s) need attention. Edit or remove them, then run the review again.`
+                    : "No missing context found. Check the preview yourself before importing."
+                  : "Review has not completed. Run it before importing."}
+              </p>
+              <button type="button" className="btn-secondary btn-sm mt-3" disabled={reviewing || questions.length === 0} onClick={() => void review(questions)}>
+                {reviewing ? "Reviewing…" : "Run AI review again"}
+              </button>
+            </section>
+          )}
+
+          {questions.length > 0 && (
             <fieldset className="card p-5">
               <legend className="field-label mb-3">
                 If the bank already has one of these questions
@@ -487,14 +538,18 @@ export default function AlocSyncPage() {
 
           <QuestionPreviewTable
             questions={rows}
-            onUpdateQuestion={(index, updated) =>
+            onUpdateQuestion={(index, updated) => {
+              setReviewed(false)
+              setReviewIssues([])
               setQuestions((previous) =>
                 previous.map((question, position) => (position === index ? updated : question)),
               )
-            }
-            onRemoveQuestion={(index) =>
+            }}
+            onRemoveQuestion={(index) => {
+              setReviewed(false)
+              setReviewIssues([])
               setQuestions((previous) => previous.filter((_, position) => position !== index))
-            }
+            }}
           />
 
           <div className="card sticky bottom-4 flex flex-wrap items-center gap-3 border-hairline bg-surface/85 p-4 backdrop-blur-xl">
@@ -509,7 +564,7 @@ export default function AlocSyncPage() {
             <button
               type="button"
               onClick={() => void startImport()}
-              disabled={questions.length === 0}
+              disabled={questions.length === 0 || !reviewed || reviewing || reviewIssues.length > 0}
               className="btn-primary btn-sm"
             >
               Import {questions.length || ""}
