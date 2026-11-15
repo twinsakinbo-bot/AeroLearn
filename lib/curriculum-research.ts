@@ -1,5 +1,6 @@
 /** Read the revised curriculum PDFs linked from NERDC's official site. */
 export type CurriculumSource = { title: string; url: string; excerpt: string }
+export type CurriculumDocument = { title: string; url: string; text: string }
 
 const PORTAL = "https://lmis.nerdcportals.com.ng"
 const APPROVED_INDEX = "https://nerdc.gov.ng/content_manager"
@@ -43,7 +44,7 @@ function subjectNames(subject: string, classLevel: string): string[] {
   return names.map(normalized)
 }
 
-export async function researchCurriculum(subject: string, classLevel: string, topic: string): Promise<CurriculumSource[]> {
+async function curriculumEntries(classLevel: string): Promise<Array<{ label: string; url: URL }>> {
   const match = classLevel.match(/^(JSS|SS)\s*([123])$/i)
   if (!match) return []
   const senior = match[1].toUpperCase() === "SS"
@@ -58,25 +59,41 @@ export async function researchCurriculum(subject: string, classLevel: string, to
     ? links(classHtml).map(({ url }) => url).filter((url) => /^\/s[123]_(core|science|humanities|business)$/.test(url.pathname))
     : []
   const pages = senior ? await Promise.all(groupPages.map(readText)) : [classHtml]
+  return pages.flatMap(links).filter(({ url }) => new RegExp(`^/viewer/${level}/[0-9]+$`).test(url.pathname))
+}
+
+export async function listCurriculumSubjects(classLevel: string): Promise<string[]> {
+  return Array.from(new Set((await curriculumEntries(classLevel)).map(({ label }) => label)))
+}
+
+export async function getCurriculumDocument(subject: string, classLevel: string): Promise<CurriculumDocument | null> {
+  const match = classLevel.match(/^(JSS|SS)\s*([123])$/i)
+  if (!match) return null
+  const level = `${match[1].toUpperCase() === "SS" ? "sss" : "jss"}_${match[2]}`
   const names = subjectNames(subject, classLevel)
-  const entry = pages.flatMap(links).find(({ label, url }) =>
-    names.includes(normalized(label)) && new RegExp(`^/viewer/${level}/[0-9]+$`).test(url.pathname),
-  )
-  if (!entry) return []
+  const entry = (await curriculumEntries(classLevel)).find(({ label }) => names.includes(normalized(label)))
+  if (!entry) return null
 
   const viewer = await readText(entry.url)
   const frame = viewer.match(/<iframe\b[^>]*src=["']([^"']+)["']/i)?.[1]
   const frameUrl = frame ? safePortalUrl(frame) : null
   const file = frameUrl?.searchParams.get("file")
-  if (!frameUrl || !new RegExp(`^/${level}/necurrdc/viewer\\.html$`).test(frameUrl.pathname) || !file || !/^[0-9]+\.pdf$/.test(file)) return []
+  if (!frameUrl || !new RegExp(`^/${level}/necurrdc/viewer\\.html$`).test(frameUrl.pathname) || !file || !/^[0-9]+\.pdf$/.test(file)) return null
   const pdfUrl = new URL(`${PORTAL}/${level}/necurrdc/${file}`)
   const response = await fetch(pdfUrl, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20_000) })
-  if (!response.ok || !response.headers.get("content-type")?.includes("application/pdf")) return []
-  if (Number(response.headers.get("content-length") || 0) > 10_000_000) return []
+  if (!response.ok || !response.headers.get("content-type")?.includes("application/pdf")) return null
+  if (Number(response.headers.get("content-length") || 0) > 10_000_000) return null
   const buffer = Buffer.from(await response.arrayBuffer())
-  if (buffer.length > 10_000_000) return []
+  if (buffer.length > 10_000_000) return null
   const pdfParse = (await import("pdf-parse")).default
   const curriculum = (await pdfParse(buffer)).text.replace(/\s+/g, " ")
+  return { title: `NERDC revised ${entry.label} curriculum, ${classLevel}`, url: pdfUrl.toString(), text: curriculum }
+}
+
+export async function researchCurriculum(subject: string, classLevel: string, topic: string): Promise<CurriculumSource[]> {
+  const document = await getCurriculumDocument(subject, classLevel)
+  if (!document) return []
+  const curriculum = document.text
   const lower = curriculum.toLowerCase()
   const needle = topic.toLowerCase()
   const positions: number[] = []
@@ -86,8 +103,8 @@ export async function researchCurriculum(subject: string, classLevel: string, to
   if (positions.length === 0) return []
   const excerpt = positions.slice(0, 3).map((at) => curriculum.slice(Math.max(0, at - 250), at + 1500)).join("\n\n[…]\n\n")
   return [{
-    title: `NERDC revised ${entry.label} curriculum, ${classLevel}`,
-    url: pdfUrl.toString(),
+    title: document.title,
+    url: document.url,
     excerpt,
   }]
 }

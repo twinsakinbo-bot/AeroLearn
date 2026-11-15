@@ -12,6 +12,7 @@ import {
   Ticket,
   Database,
   FileText,
+  Sparkles,
   HelpCircle,
   LayoutDashboard,
   LogOut,
@@ -78,6 +79,7 @@ const NAV: NavGroup[] = [
     title: "Content",
     items: [
       { label: "Curriculum", href: "/admin/curriculum", icon: BookOpen },
+      { label: "AI lesson generator", href: "/admin/lesson-generator", icon: Sparkles },
       { label: "Lesson editor", href: "/admin/lesson-editor", icon: FileText },
       { label: "Import lessons", href: "/admin/lesson-importer", icon: Upload },
     ],

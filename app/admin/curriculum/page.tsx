@@ -287,6 +287,10 @@ export default function AdminCurriculumPage() {
               <Upload size={15} aria-hidden="true" />
               Import lessons
             </Link>
+            <Link href="/admin/lesson-generator" className="btn-secondary btn-sm">
+              <Sparkles size={15} aria-hidden="true" />
+              Generate from NERDC
+            </Link>
           </>
         }
       />
@@ -389,10 +393,10 @@ export default function AdminCurriculumPage() {
           description={
             narrowed
               ? "Try a different topic, subject or class — or clear the filters to see the whole bank."
-              : "Import a syllabus file to fill the curriculum, then attach videos and homework in the editor."
+              : "Generate current NERDC lessons with AI, or import your own lessons."
           }
-          actionText={narrowed ? undefined : "Import lessons"}
-          actionHref={narrowed ? undefined : "/admin/lesson-importer"}
+          actionText={narrowed ? undefined : "Generate lessons"}
+          actionHref={narrowed ? undefined : "/admin/lesson-generator"}
         />
       ) : (
         <div className="card overflow-hidden p-0">
