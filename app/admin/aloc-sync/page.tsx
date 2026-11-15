@@ -169,7 +169,22 @@ export default function AlocSyncPage() {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "AI review failed.")
-      setReviewIssues(data.issues ?? [])
+      if (!Array.isArray(data.issues)) throw new Error("AI review returned no issue list. Try again before importing.")
+      const issues = (data.issues as Array<{ index: number; reason: string }>).filter((issue) =>
+        Number.isInteger(issue.index) && issue.index >= 0 && issue.index < batch.length && typeof issue.reason === "string",
+      )
+      const rejected = new Set(issues.map((issue) => issue.index))
+      if (rejected.size > 0) {
+        setSkipped((previous) => [
+          ...previous,
+          ...Array.from(rejected).map((index) => ({
+            question: batch[index].question,
+            reason: `AI review: ${issues.filter((issue) => issue.index === index).map((issue) => issue.reason).join("; ")}`,
+          })),
+        ])
+        setQuestions(batch.filter((_, index) => !rejected.has(index)))
+      }
+      setReviewIssues([])
       setReviewed(true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "AI review failed.")
@@ -467,12 +482,10 @@ export default function AlocSyncPage() {
             <section className="card border-warn/30 p-5">
               <h3 className="flex items-center gap-2 text-body-sm font-semibold text-foreground">
                 <SkipForward size={15} className="shrink-0 text-warn" aria-hidden="true" />
-                {skipped.length} question{skipped.length === 1 ? "" : "s"} ALOC sent that cannot be
-                imported
+                {skipped.length} question{skipped.length === 1 ? "" : "s"} excluded from import
               </h3>
               <p className="mt-1 text-caption text-muted">
-                These are reported rather than patched up. The old page guessed a year and an answer
-                key for cases like these, which is how wrong answers got into the bank.
+                Invalid ALOC rows and questions flagged by AI review are removed automatically. Their reasons are listed below.
               </p>
               <ul className="mt-3 space-y-2">
                 {skipped.map((entry, index) => (
@@ -490,9 +503,7 @@ export default function AlocSyncPage() {
               <h3 className="text-body-sm font-semibold text-foreground">AI question review</h3>
               <p className="mt-1 text-caption text-muted">
                 {reviewing ? "Checking diagrams, shared instructions, and linked questions…" :
-                  reviewed ? reviewIssues.length > 0
-                    ? `${reviewIssues.length} question(s) need attention. Edit or remove them, then run the review again.`
-                    : "No missing context found. Check the preview yourself before importing."
+                  reviewed ? `${skipped.filter((entry) => entry.reason.startsWith("AI review:")).length} question(s) removed by AI review. Check the remaining preview before importing.`
                   : "Review has not completed. Run it before importing."}
               </p>
               <button type="button" className="btn-secondary btn-sm mt-3" disabled={reviewing || questions.length === 0} onClick={() => void review(questions)}>

@@ -241,6 +241,7 @@ export default function AdminCurriculumPage() {
           })
           if (!response.ok) {
             const data = await response.json().catch(() => ({}))
+            if (response.status >= 500 || response.status === 401 || response.status === 403) stopGeneration.current = true
             throw new Error(data.error || `Generation failed (${response.status}).`)
           }
           completed++
