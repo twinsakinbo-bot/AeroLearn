@@ -2,7 +2,7 @@
 const BASE = "https://obasi-ai.vercel.app/api/v1"
 
 export const aetherKey = process.env.AETHER_API_KEY?.trim() || ""
-export const aetherModel = process.env.AETHER_MODEL?.trim() || "auto"
+export const aetherModel = process.env.AETHER_MODEL?.trim() || "aether-minimax-m3-1-flash"
 export const aetherVisionModel = process.env.AETHER_VISION_MODEL?.trim() || aetherModel
 
 type Message = { role: "system" | "user" | "assistant"; content: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }> }
