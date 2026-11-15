@@ -39,9 +39,6 @@ export async function POST(request: Request) {
   const gate = await requireAdmin(request)
   if (!gate.ok) return gate.response
   if (!aetherKey) return NextResponse.json({ error: "AETHER_API_KEY is not configured." }, { status: 503 })
-  if (!process.env.BRAVE_SEARCH_API_KEY?.trim()) {
-    return NextResponse.json({ error: "BRAVE_SEARCH_API_KEY is needed for live curriculum research." }, { status: 503 })
-  }
 
   const body = await request.json().catch(() => null)
   const id = lessonId(body?.lessonId)
@@ -70,7 +67,7 @@ export async function POST(request: Request) {
 
     const sources = await researchCurriculum(subject, classLevel, topic)
     if (sources.length === 0) {
-      return NextResponse.json({ error: "No official curriculum page mentioning this topic was found. Check the topic or try again later." }, { status: 422 })
+      return NextResponse.json({ error: "This topic was not found in the current NERDC curriculum for that class and subject. Check the topic before drafting." }, { status: 422 })
     }
 
     const result = await chatCompletion({
