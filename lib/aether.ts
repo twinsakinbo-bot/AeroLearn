@@ -13,14 +13,14 @@ export async function chatCompletion(options: {
   temperature?: number
   max_tokens?: number
   response_format?: { type: "json_object" }
-}) {
+}, timeoutMs = 60_000) {
   if (!aetherKey) throw new Error("AETHER_API_KEY is not configured")
   const response = await fetch(`${BASE}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${aetherKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: aetherModel, ...options }),
     cache: "no-store",
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(timeoutMs),
   })
   if (!response.ok) throw new Error(`Aether chat request failed (${response.status})`)
   return response.json() as Promise<{ choices: Array<{ message: { content: string | null } }> }>
