@@ -5,6 +5,44 @@ export type CurriculumDocument = { title: string; url: string; text: string }
 const PORTAL = "https://lmis.nerdcportals.com.ng"
 const APPROVED_INDEX = "https://nerdc.gov.ng/content_manager"
 
+// PDF links verified against the revised NERDC curriculum. The portal's HTML
+// subject index intermittently responds with 403, including from deployments.
+const verifiedSubjects: Record<string, Array<[string, number]>> = {
+  "JSS 1": [
+    ["English Studies", 1], ["Mathematics", 2], ["Hausa Language", 3],
+    ["Igbo Language", 4], ["Yoruba Language", 5],
+    ["Physical and Health Education", 6], ["Christian Religious Studies", 7],
+    ["Islamic Studies", 8], ["Nigerian History", 9],
+    ["Social and Citizenship Studies", 10], ["Cultural and Creative Arts (CCA)", 11],
+    ["Arabic Language", 12], ["French", 13], ["Intermediate Science", 14],
+    ["Digital Technologies", 15], ["Business Studies", 16],
+  ],
+  "JSS 2": [
+    ["English Studies", 1], ["Mathematics", 2], ["Hausa Language", 3],
+    ["Yoruba Language", 5], ["Physical and Health Education", 6],
+    ["Christian Religious Studies", 7], ["Islamic Studies", 8],
+    ["Nigerian History", 9], ["Social and Citizenship Studies", 10],
+    ["Cultural and Creative Arts (CCA)", 11], ["Intermediate Science", 14],
+    ["Digital Technologies", 15], ["Business Studies", 16],
+  ],
+  "SS 1": [
+    ["English Language", 1], ["General Mathematics", 2],
+    ["Citizenship and Heritage Studies", 3], ["Digital Technologies", 4],
+    ["Further Mathematics", 5], ["Physics", 8],
+  ],
+  "SS 2": [["Mathematics", 2]],
+}
+
+function verifiedEntries(classLevel: string): Array<{ label: string; pdfUrl: URL }> {
+  const match = classLevel.match(/^(JSS|SS)\s*([123])$/i)
+  if (!match) return []
+  const level = `${match[1].toUpperCase() === "SS" ? "sss" : "jss"}_${match[2]}`
+  return (verifiedSubjects[classLevel] || []).map(([label, id]) => ({
+    label,
+    pdfUrl: new URL(`${PORTAL}/${level}/necurrdc/${id}.pdf`),
+  }))
+}
+
 function plainText(value: string): string {
   return value.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim()
 }
@@ -63,6 +101,8 @@ async function curriculumEntries(classLevel: string): Promise<Array<{ label: str
 }
 
 export async function listCurriculumSubjects(classLevel: string): Promise<string[]> {
+  const verified = verifiedEntries(classLevel)
+  if (verified.length) return verified.map(({ label }) => label)
   return Array.from(new Set((await curriculumEntries(classLevel)).map(({ label }) => label)))
 }
 
@@ -71,15 +111,20 @@ export async function getCurriculumDocument(subject: string, classLevel: string)
   if (!match) return null
   const level = `${match[1].toUpperCase() === "SS" ? "sss" : "jss"}_${match[2]}`
   const names = subjectNames(subject, classLevel)
-  const entry = (await curriculumEntries(classLevel)).find(({ label }) => names.includes(normalized(label)))
-  if (!entry) return null
-
-  const viewer = await readText(entry.url)
-  const frame = viewer.match(/<iframe\b[^>]*src=["']([^"']+)["']/i)?.[1]
-  const frameUrl = frame ? safePortalUrl(frame) : null
-  const file = frameUrl?.searchParams.get("file")
-  if (!frameUrl || !new RegExp(`^/${level}/necurrdc/viewer\\.html$`).test(frameUrl.pathname) || !file || !/^[0-9]+\.pdf$/.test(file)) return null
-  const pdfUrl = new URL(`${PORTAL}/${level}/necurrdc/${file}`)
+  const verified = verifiedEntries(classLevel).find(({ label }) => names.includes(normalized(label)))
+  let pdfUrl = verified?.pdfUrl
+  let label = verified?.label
+  if (!pdfUrl) {
+    const entry = (await curriculumEntries(classLevel)).find(({ label }) => names.includes(normalized(label)))
+    if (!entry) return null
+    const viewer = await readText(entry.url)
+    const frame = viewer.match(/<iframe\b[^>]*src=["']([^"']+)["']/i)?.[1]
+    const frameUrl = frame ? safePortalUrl(frame) : null
+    const file = frameUrl?.searchParams.get("file")
+    if (!frameUrl || !new RegExp(`^/${level}/necurrdc/viewer\\.html$`).test(frameUrl.pathname) || !file || !/^[0-9]+\.pdf$/.test(file)) return null
+    pdfUrl = new URL(`${PORTAL}/${level}/necurrdc/${file}`)
+    label = entry.label
+  }
   const response = await fetch(pdfUrl, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20_000) })
   if (!response.ok || !response.headers.get("content-type")?.includes("application/pdf")) return null
   if (Number(response.headers.get("content-length") || 0) > 10_000_000) return null
@@ -87,7 +132,7 @@ export async function getCurriculumDocument(subject: string, classLevel: string)
   if (buffer.length > 10_000_000) return null
   const pdfParse = (await import("pdf-parse")).default
   const curriculum = (await pdfParse(buffer)).text.replace(/\s+/g, " ")
-  return { title: `NERDC revised ${entry.label} curriculum, ${classLevel}`, url: pdfUrl.toString(), text: curriculum }
+  return { title: `NERDC revised ${label} curriculum, ${classLevel}`, url: pdfUrl.toString(), text: curriculum }
 }
 
 export async function researchCurriculum(subject: string, classLevel: string, topic: string): Promise<CurriculumSource[]> {
