@@ -19,6 +19,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state"
 import { LoadingState } from "@/components/ui/loading-state"
 import { PageHeader } from "@/components/ui/page-header"
+import { auth } from "@/lib/auth"
 import { termRank } from "@/lib/types/lesson"
 import type { PracticeQuestion, QuestionOptions } from "@/lib/types/question"
 import { cn } from "@/lib/utils"
@@ -169,6 +170,9 @@ export default function AdminLessonEditorPage() {
 
   const [selectedId, setSelectedId] = useState("")
   const [notes, setNotes] = useState("")
+  const [aiDraftContent, setAiDraftContent] = useState("")
+  const [aiDraftSources, setAiDraftSources] = useState<Array<{ title: string; url: string }>>([])
+  const [usingAiDraft, setUsingAiDraft] = useState(false)
   const [videoUrl, setVideoUrl] = useState("")
   const [homework, setHomework] = useState<PracticeQuestion[]>([])
 
@@ -228,11 +232,39 @@ export default function AdminLessonEditorPage() {
     [lessons, selectedId],
   )
 
+  useEffect(() => {
+    setAiDraftContent("")
+    setAiDraftSources([])
+    if (!selectedId) return
+    let active = true
+    const readDraft = async () => {
+      const user = auth.currentUser
+      if (!user) return
+      try {
+        const token = await user.getIdToken()
+        const response = await fetch(`/api/lessons/generate-draft?lessonId=${encodeURIComponent(selectedId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!response.ok) throw new Error("Could not load the AI draft.")
+        const data = await response.json()
+        if (active) {
+          setAiDraftContent(typeof data.content === "string" ? data.content : "")
+          setAiDraftSources(Array.isArray(data.sources) ? data.sources : [])
+        }
+      } catch (cause) {
+        if (active) setSaveError(cause instanceof Error ? cause.message : "Could not load the AI draft.")
+      }
+    }
+    void readDraft()
+    return () => { active = false }
+  }, [selectedId])
+
   /* Fill the draft from whichever lesson is selected. Re-running when `lessons`
      changes is what resets the form after a save. */
   useEffect(() => {
     if (!selected) return
     setNotes(selected.content)
+    setUsingAiDraft(false)
     setVideoUrl(selected.videoUrl)
     setHomework(selected.homework.map(cloneQuestion))
     setSaveError(null)
@@ -292,6 +324,7 @@ export default function AdminLessonEditorPage() {
   const discard = () => {
     if (!selected) return
     setNotes(selected.content)
+    setUsingAiDraft(false)
     setVideoUrl(selected.videoUrl)
     setHomework(selected.homework.map(cloneQuestion))
     setSaveError(null)
@@ -337,6 +370,16 @@ export default function AdminLessonEditorPage() {
         homework: cleaned,
         updatedAt: serverTimestamp(),
       })
+      if (usingAiDraft) {
+        const token = await auth.currentUser?.getIdToken()
+        const response = await fetch(`/api/lessons/generate-draft?lessonId=${encodeURIComponent(selected.id)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!response.ok) throw new Error("Notes saved, but the AI draft could not be cleared. Reload and try again.")
+        setAiDraftContent("")
+        setAiDraftSources([])
+      }
       setLessons((prev) =>
         prev.map((lesson) =>
           lesson.id === selected.id
@@ -484,6 +527,31 @@ export default function AdminLessonEditorPage() {
                     {words === 0 ? "Empty" : `${words.toLocaleString()} words`}
                   </span>
                 </div>
+
+                {aiDraftContent && (
+                  <div className="mb-4 rounded-xl border border-accent/30 bg-accent/5 p-4">
+                    <p className="text-body-sm font-semibold text-foreground">AI draft ready for review</p>
+                    <p className="mt-1 text-caption text-muted">Read and correct the generated note before saving it for students.</p>
+                    {aiDraftSources.length > 0 && (
+                      <div className="mt-3 text-caption text-muted">
+                        <p className="font-semibold">Curriculum sources checked:</p>
+                        <ul className="mt-1 list-disc pl-5">
+                          {aiDraftSources.map((source) => (
+                            <li key={source.url}><a className="text-accent underline" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm mt-3"
+                      disabled={dirty && !usingAiDraft}
+                      onClick={() => { setNotes(aiDraftContent); setUsingAiDraft(true) }}
+                    >
+                      Load draft into editor
+                    </button>
+                  </div>
+                )}
 
                 <label htmlFor="lesson-notes" className="field-label">
                   Lesson body

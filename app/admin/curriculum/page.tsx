@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   collection,
@@ -17,6 +17,7 @@ import {
   Pencil,
   RefreshCw,
   Search,
+  Sparkles,
   Trash2,
   Upload,
   Video,
@@ -26,6 +27,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state"
 import { LoadingState } from "@/components/ui/loading-state"
 import { PageHeader } from "@/components/ui/page-header"
+import { auth } from "@/lib/auth"
 import { termRank } from "@/lib/types/lesson"
 import { cn } from "@/lib/utils"
 
@@ -90,6 +92,8 @@ type Row = {
   homework: number
   hasVideo: boolean
   words: number
+  hasDraft: boolean
+  needsNotes: boolean
 }
 
 function text(value: unknown): string {
@@ -113,6 +117,8 @@ function rowFrom(entry: QueryDocumentSnapshot<DocumentData>): Row {
     homework: size(data.homework),
     hasVideo: text(data.videoUrl).length > 0,
     words: body ? body.split(/\s+/).length : 0,
+    hasDraft: data.hasAiDraft === true,
+    needsNotes: !body || body.includes("This is a comprehensive overview of"),
   }
 }
 
@@ -128,6 +134,9 @@ function compare(a: Row, b: Row) {
 export default function AdminCurriculumPage() {
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [generationStatus, setGenerationStatus] = useState("")
+  const stopGeneration = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [needle, setNeedle] = useState("")
   const [classFilter, setClassFilter] = useState("all")
@@ -202,6 +211,44 @@ export default function AdminCurriculumPage() {
       )
     })
   }, [rows, needle, classFilter])
+
+  const draftable = filtered.filter((row) => row.needsNotes && !row.hasDraft && row.subject !== "No subject" && row.classLevel !== "No class")
+
+  const generateDrafts = async () => {
+    if (!auth.currentUser || draftable.length === 0) return
+    stopGeneration.current = false
+    setGenerating(true)
+    let completed = 0
+    let failed = 0
+    try {
+      const token = await auth.currentUser.getIdToken()
+      for (const row of draftable) {
+        if (stopGeneration.current) break
+        setGenerationStatus(`Drafting ${completed + failed + 1} of ${draftable.length}: ${row.topicTitle}`)
+        try {
+          const response = await fetch("/api/lessons/generate-draft", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ lessonId: row.id }),
+          })
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}))
+            throw new Error(data.error || `Generation failed (${response.status}).`)
+          }
+          completed++
+          setRows((previous) => previous.map((lesson) => lesson.id === row.id ? { ...lesson, hasDraft: true } : lesson))
+        } catch (cause) {
+          failed++
+          setGenerationStatus(`${row.topicTitle}: ${cause instanceof Error ? cause.message : "Generation failed."}`)
+        }
+      }
+      setGenerationStatus(`${completed} draft${completed === 1 ? "" : "s"} ready for review${failed ? ` · ${failed} failed` : ""}${stopGeneration.current ? " · stopped" : ""}.`)
+    } catch (cause) {
+      setGenerationStatus(cause instanceof Error ? cause.message : "Could not start generation.")
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const narrowed = classFilter !== "all" || needle.trim().length > 0
 
@@ -303,6 +350,24 @@ export default function AdminCurriculumPage() {
         </p>
       </div>
 
+      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-hairline bg-surface p-4">
+        <Sparkles size={18} className="text-accent" aria-hidden="true" />
+        <p className="min-w-48 flex-1 text-body-sm text-muted">
+          Generate original AI note drafts for {classFilter === "all" ? "the visible lessons" : classFilter}. Existing notes stay in place until you review and save each draft.
+        </p>
+        {generating ? (
+          <button type="button" className="btn-secondary btn-sm" onClick={() => { stopGeneration.current = true }}>
+            Stop after this lesson
+          </button>
+        ) : (
+          <button type="button" className="btn-primary btn-sm" onClick={() => void generateDrafts()} disabled={draftable.length === 0 || loading}>
+            <Sparkles size={15} aria-hidden="true" />
+            Generate {draftable.length} draft{draftable.length === 1 ? "" : "s"}
+          </button>
+        )}
+        {generationStatus && <p role="status" className="w-full text-caption text-muted">{generationStatus}</p>}
+      </div>
+
       {loading ? (
         <div className="card p-12">
           <LoadingState text="Reading the lesson bank…" />
@@ -374,11 +439,14 @@ export default function AdminCurriculumPage() {
                     </td>
                     <td className="hidden whitespace-nowrap px-5 py-4 lg:table-cell">
                       <span className="flex items-center gap-3 text-caption tabular-nums text-muted">
-                        {row.words > 0 ? (
+                        {row.needsNotes ? (
+                          <span className="font-semibold text-warn">Needs notes</span>
+                        ) : row.words > 0 ? (
                           <span>{row.words.toLocaleString()} words</span>
                         ) : (
                           <span className="font-semibold text-warn">No notes</span>
                         )}
+                        {row.hasDraft && <span className="font-semibold text-accent">AI draft ready</span>}
                         <span className="text-subtle">
                           {row.examples} example{row.examples === 1 ? "" : "s"}
                         </span>
