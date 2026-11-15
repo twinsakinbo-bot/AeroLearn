@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation"
 import { auth, onAuthStateChanged } from "@/lib/auth"
 import { collection, db, doc, getDoc, getDocs, query, where } from "@/lib/db"
 import { BookOpen, ChevronRight, FileText, Search } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import rehypeKatex from "rehype-katex"
+import remarkMath from "remark-math"
+import "katex/dist/katex.min.css"
 
 import { AI_FALLBACK_LINE, LibraryPendingNotice } from "@/components/ui/availability"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -25,7 +29,7 @@ import { cn } from "@/lib/utils"
  * no handler.
  */
 
-type StoredNote = Note & { id: string }
+type StoredNote = Omit<Note, "content"> & { id: string; content: NoteBlock[] | string }
 
 /** Presentation for each block type a note can contain. */
 const CALLOUTS: Partial<Record<NoteBlock["type"], { label: string; className: string }>> = {
@@ -131,14 +135,25 @@ export default function NotesPage() {
         setProfile(data)
 
         if (data?.classLevel) {
-          const published = await getDocs(
-            query(
-              collection(db, "notes"),
-              where("classLevel", "==", data.classLevel),
-              where("isPublished", "==", true),
-            ),
-          )
-          setNotes(published.docs.map((d) => ({ id: d.id, ...d.data() }) as StoredNote))
+          const [published, lessons] = await Promise.all([
+            getDocs(query(collection(db, "notes"), where("classLevel", "==", data.classLevel), where("isPublished", "==", true))),
+            getDocs(query(collection(db, "lessons"), where("classLevel", "==", data.classLevel))),
+          ])
+          const writtenLessons = lessons.docs.flatMap((entry) => {
+            const lesson = entry.data()
+            const content = typeof lesson.content === "string" ? lesson.content.trim() : ""
+            if (!content || content.includes("This is a comprehensive overview of")) return []
+            return [{
+              id: `lesson-${entry.id}`,
+              classLevel: String(lesson.classLevel || ""),
+              subject: String(lesson.subject || ""),
+              topic: String(lesson.topicTitle || ""),
+              title: String(lesson.topicTitle || "Lesson notes"),
+              content,
+              isPublished: true,
+            } satisfies StoredNote]
+          })
+          setNotes([...published.docs.map((entry) => ({ id: entry.id, ...entry.data() }) as StoredNote), ...writtenLessons])
         }
       } catch (err) {
         console.error("Failed to load notes:", err)
@@ -190,6 +205,7 @@ export default function NotesPage() {
   /* ── Reader ──────────────────────────────────────────────────────────── */
   if (openNote) {
     const blocks = Array.isArray(openNote.content) ? openNote.content : []
+    const markdown = typeof openNote.content === "string" ? openNote.content : ""
 
     return (
       <article className="mx-auto max-w-prose">
@@ -201,7 +217,11 @@ export default function NotesPage() {
           subtitle={`${openNote.subject} · ${openNote.classLevel}`}
         />
 
-        {blocks.length === 0 ? (
+        {markdown ? (
+          <div className="prose max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-muted prose-li:text-muted">
+            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{markdown}</ReactMarkdown>
+          </div>
+        ) : blocks.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="This note is empty"
@@ -241,7 +261,7 @@ export default function NotesPage() {
           <EmptyState
             icon={FileText}
             title={`No ${subject} notes yet`}
-            description={`No ${subject} notes have been imported for your class yet. ${AI_FALLBACK_LINE}`}
+            description={`No ${subject} notes have been published for your class yet. ${AI_FALLBACK_LINE}`}
             actionText={`Practise ${subject}`}
             actionHref={`/app/practice?subject=${encodeURIComponent(subject)}`}
           />
@@ -278,7 +298,7 @@ export default function NotesPage() {
         <LibraryPendingNotice
           className="mb-6"
           title="No notes for your class yet"
-          detail={`No written notes have been imported for ${
+          detail={`No written notes have been published for ${
             profile?.classLevel ? String(profile.classLevel) : "your class"
           } yet, so every subject below reads zero. ${AI_FALLBACK_LINE}`}
         />
