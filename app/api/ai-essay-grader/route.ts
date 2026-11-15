@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
 
 import { getAdminAuth, getAdminDb } from "@/lib/db-admin"
-import { isPaidPlan } from "@/lib/plans"
+import { isProUser } from "@/lib/plan-access"
 
 /**
  * Grades a photographed handwritten answer with a vision model.
@@ -18,31 +18,6 @@ const MAX_IMAGE_CHARS = 7_500_000
 const MAX_QUESTION_CHARS = 2_000
 
 const apiKey = aetherKey
-
-/**
- * Mirrors `isProUser` in lib/subscription, which cannot be imported here.
- *
- * Only the expiry coercion is duplicated. The plan test comes from `isPaidPlan`,
- * because this route used to carry its own `PRO_PLANS` set of four plans while
- * the upgrade page sold eight. A Full Year or Both Exams member would pay, see
- * "essay grading included" on the card they bought, and get a 403 from here —
- * while every other Pro gate in the app accepted the same account.
- */
-function isPro(data: Record<string, unknown> | undefined) {
-  if (!data || !isPaidPlan(data.subscription)) return false
-
-  const raw = data.proExpiresAt as { toDate?: () => Date; seconds?: number } | string | undefined
-  if (!raw) return true
-
-  const expires =
-    typeof raw === "object" && raw.toDate
-      ? raw.toDate()
-      : typeof raw === "object" && raw.seconds
-        ? new Date(raw.seconds * 1000)
-        : new Date(raw as string)
-
-  return Number.isNaN(expires.getTime()) || new Date() <= expires
-}
 
 export async function POST(req: Request) {
   const authHeader = req.headers.get("authorization")
@@ -60,7 +35,7 @@ export async function POST(req: Request) {
 
   try {
     const profile = await getAdminDb().collection("users").doc(uid).get()
-    if (!isPro(profile.data())) {
+    if (!isProUser(profile.data())) {
       return NextResponse.json(
         { error: "Essay grading is a Pro feature." },
         { status: 403 },

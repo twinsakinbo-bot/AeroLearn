@@ -132,6 +132,10 @@ export default function QuestionsPage() {
   const [reviewingAloc, setReviewingAloc] = useState(false)
   const [alocIssues, setAlocIssues] = useState<Record<string, string>>({})
   const [alocReviewDone, setAlocReviewDone] = useState(false)
+  const [auditCursor, setAuditCursor] = useState<Cursor>(null)
+  const [auditMode, setAuditMode] = useState(false)
+  const [auditComplete, setAuditComplete] = useState(false)
+  const [auditedTotal, setAuditedTotal] = useState(0)
 
   const years = useMemo(() => {
     const now = new Date().getFullYear()
@@ -141,7 +145,13 @@ export default function QuestionsPage() {
   const load = useCallback(
     async (after: Cursor) => {
       if (after) setLoadingMore(true)
-      else setLoading(true)
+      else {
+        setLoading(true)
+        setAuditMode(false)
+        setAuditCursor(null)
+        setAuditComplete(false)
+        setAuditedTotal(0)
+      }
       setError("")
       setAlocIssues({})
       setAlocReviewDone(false)
@@ -217,20 +227,28 @@ export default function QuestionsPage() {
   /** The search box filters what is loaded — Firestore has no substring search. */
   const visible = useMemo(() => {
     const needle = applied.search.trim().toLowerCase()
-    if (!needle) return rows
+    if (!needle || auditMode) return rows
     return rows.filter(
       (row) =>
         row.question.toLowerCase().includes(needle) ||
         (row.topic ?? "").toLowerCase().includes(needle),
     )
-  }, [rows, applied.search])
+  }, [rows, applied.search, auditMode])
 
   const save = async (id: string, updated: PracticeQuestion) => {
     setSaveError("")
     try {
       const { id: _ignored, ...data } = updated
-      await updateDoc(doc(db, "practiceQuestions", id), { ...data, updatedAt: new Date() })
-      setRows((prev) => prev.map((row) => (row.id === id ? { ...updated, id } : row)))
+      const revised = {
+        ...data,
+        updatedAt: new Date(),
+        ...(rows.find((row) => row.id === id)?.aiReviewStatus === "needs-review" ? {
+          aiReviewStatus: "edited" as const,
+          aiReviewReason: null,
+        } : {}),
+      }
+      await updateDoc(doc(db, "practiceQuestions", id), revised)
+      setRows((prev) => prev.map((row) => (row.id === id ? { ...revised, id } : row)))
       setAlocIssues((prev) => { const next = { ...prev }; delete next[id]; return next })
       setEditingId(null)
     } catch (cause) {
@@ -241,25 +259,27 @@ export default function QuestionsPage() {
     }
   }
 
-  const reviewRecentAloc = async () => {
+  const reviewNextAlocBatch = async () => {
     setReviewingAloc(true)
     setError("")
     setAlocIssues({})
     setAlocReviewDone(false)
     try {
+      const after = auditComplete ? null : auditCursor
+      if (auditComplete) setAuditedTotal(0)
       const idToken = await auth.currentUser?.getIdToken()
       if (!idToken) throw new Error("Sign in again as an admin.")
       const snap = await getDocs(query(
         collection(db, "practiceQuestions"),
         where("source", "==", "ALOC"),
         orderBy("createdAt", "desc"),
+        ...(after ? [startAfter(after)] : []),
         limit(40),
       ))
       const batch = snap.docs.map(questionFrom)
-      setRows(batch)
-      setCursor(null)
-      setHasMore(false)
       if (batch.length === 0) {
+        setAuditComplete(true)
+        setAuditMode(true)
         setAlocReviewDone(true)
         return
       }
@@ -274,6 +294,28 @@ export default function QuestionsPage() {
       for (const issue of result.issues ?? []) {
         if (batch[issue.index]?.id) issues[batch[issue.index].id!] = issue.reason
       }
+      const reviewedAt = new Date()
+      for (let index = 0; index < batch.length; index += 10) {
+        await Promise.all(batch.slice(index, index + 10).map((question) =>
+          updateDoc(doc(db, "practiceQuestions", question.id!), {
+            aiReviewStatus: issues[question.id!] ? "needs-review" : "clear",
+            aiReviewReason: issues[question.id!] ?? null,
+            aiReviewedAt: reviewedAt,
+          }),
+        ))
+      }
+      setRows(batch.map((question) => ({
+        ...question,
+        aiReviewStatus: issues[question.id!] ? "needs-review" : "clear",
+        aiReviewReason: issues[question.id!] ?? null,
+        aiReviewedAt: reviewedAt,
+      })))
+      setCursor(null)
+      setHasMore(false)
+      setAuditMode(true)
+      setAuditCursor(snap.docs.at(-1) ?? null)
+      setAuditComplete(batch.length < 40)
+      setAuditedTotal((count) => count + batch.length)
       setAlocIssues(issues)
       setAlocReviewDone(true)
     } catch (cause) {
@@ -330,8 +372,8 @@ export default function QuestionsPage() {
               <UploadCloud size={14} aria-hidden="true" />
               Import questions
             </Link>
-            <button type="button" onClick={() => void reviewRecentAloc()} disabled={reviewingAloc} className="btn-secondary btn-sm">
-              {reviewingAloc ? "Reviewing ALOC…" : "Review recent ALOC imports"}
+            <button type="button" onClick={() => void reviewNextAlocBatch()} disabled={reviewingAloc} className="btn-secondary btn-sm">
+              {reviewingAloc ? "Reviewing ALOC…" : auditComplete ? "Restart ALOC audit" : auditMode ? "Review next 40 ALOC" : "Review ALOC imports"}
             </button>
           </>
         }
@@ -491,7 +533,7 @@ export default function QuestionsPage() {
       )}
       {alocReviewDone && (
         <p role="status" className="mb-4 text-body-sm text-muted">
-          Reviewed {rows.length} recent ALOC question{rows.length === 1 ? "" : "s"}. {Object.keys(alocIssues).length} need attention. Edit or delete flagged questions below. This review does not change stored questions automatically.
+          Reviewed {auditedTotal} ALOC question{auditedTotal === 1 ? "" : "s"} in this session. {Object.keys(alocIssues).length} on this page need attention. {auditComplete ? "All ALOC questions reached." : "Use Review next 40 ALOC to continue."} The review saves flags but never rewrites question content.
         </p>
       )}
       {loading ? (
@@ -549,12 +591,15 @@ export default function QuestionsPage() {
                       ) : (
                         <span className="badge bg-warn/10 text-warn">No explanation</span>
                       )}
-                      {row.id && alocIssues[row.id] && (
+                      {row.aiReviewStatus === "needs-review" && (
                         <span className="badge bg-warn/10 text-warn">Needs review</span>
                       )}
+                      {row.aiReviewStatus === "edited" && (
+                        <span className="badge bg-warn/10 text-warn">Edited; review again</span>
+                      )}
                     </div>
-                    {row.id && alocIssues[row.id] && (
-                      <p className="mt-2 text-caption text-warn">{alocIssues[row.id]}</p>
+                    {row.aiReviewReason && (
+                      <p className="mt-2 text-caption text-warn">{row.aiReviewReason}</p>
                     )}
                   </div>
                   <div className="flex shrink-0 gap-1">

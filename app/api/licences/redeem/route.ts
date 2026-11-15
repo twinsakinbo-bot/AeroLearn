@@ -17,6 +17,8 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/api-auth"
 import { clientIp, rateLimit } from "@/lib/rate-limit"
+import { getAdminDb } from "@/lib/db-admin"
+import { hasPermanentPaidAccess } from "@/lib/plan-access"
 import {
   looksLikeCode,
   normalizeCode,
@@ -59,6 +61,19 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     )
+  }
+
+  try {
+    const profile = await getAdminDb().collection("users").doc(gate.uid).get()
+    if (hasPermanentPaidAccess(profile.data())) {
+      return NextResponse.json({
+        error: "Your account already has permanent Pro access. Keep this code or give it to someone else; it has not been used.",
+        reason: "already_permanent",
+      }, { status: 409 })
+    }
+  } catch (error) {
+    console.error("Could not check account before redemption:", error)
+    return NextResponse.json({ error: "Could not check your current plan. Try again shortly." }, { status: 503 })
   }
 
   let result: RedeemResult

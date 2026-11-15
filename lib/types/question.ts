@@ -32,6 +32,10 @@ export interface PracticeQuestion {
   paper?: string
   difficulty?: Difficulty
   source?: string
+  /** Admin audit metadata; never affects the answer or question shown to students. */
+  aiReviewStatus?: "clear" | "needs-review" | "edited"
+  aiReviewReason?: string | null
+  aiReviewedAt?: Timestamp | Date
   createdAt?: Timestamp | Date
   updatedAt?: Timestamp | Date
   /** Internal: used during edit/preview flows */
