@@ -331,9 +331,10 @@ export default function MessagesPage() {
   const [memberResults, setMemberResults] = useState<Person[]>([])
 
   const [recording, setRecording] = useState(false)
+  const [aiAudioAvailable, setAiAudioAvailable] = useState(false)
   const [recordSeconds, setRecordSeconds] = useState(0)
 
-  const endRef = useRef<HTMLDivElement>(null)
+  const messageLogRef = useRef<HTMLDivElement>(null)
   const convUnsubRef = useRef<(() => void) | null>(null)
   const msgUnsubRef = useRef<(() => void) | null>(null)
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -347,6 +348,7 @@ export default function MessagesPage() {
 
   /* One conversations listener for the life of the page, torn down on unmount. */
   useEffect(() => {
+    let cancelled = false
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         router.replace("/auth/login")
@@ -433,7 +435,7 @@ export default function MessagesPage() {
           )
 
           rows.sort((a, b) => (b.updatedAt?.seconds ?? 0) - (a.updatedAt?.seconds ?? 0))
-          if (version !== listVersionRef.current) return
+          if (cancelled || version !== listVersionRef.current) return
           setConversations(rows)
 
           const current = activeConvRef.current
@@ -458,7 +460,7 @@ export default function MessagesPage() {
     })
 
     return () => {
-      listVersionRef.current++
+      cancelled = true
       unsubscribeAuth()
       convUnsubRef.current?.()
       msgUnsubRef.current?.()
@@ -468,8 +470,18 @@ export default function MessagesPage() {
   }, [router])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" })
+    const log = messageLogRef.current
+    if (log) log.scrollTop = log.scrollHeight
   }, [messages])
+
+  useEffect(() => {
+    let live = true
+    fetch("/api/ai-chat")
+      .then((response) => response.json())
+      .then((data) => { if (live) setAiAudioAvailable(data.audioTranscription === true) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [])
 
   const cachePeople = async (ids: string[]) => {
     const missing = ids.filter((id) => id !== uid && id !== AI_BOT_ID && !userCache[id])
@@ -1283,6 +1295,7 @@ export default function MessagesPage() {
               </div>
 
               <div
+                ref={messageLogRef}
                 className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 py-5 sm:px-6"
                 role="log"
                 aria-live="polite"
@@ -1429,7 +1442,7 @@ export default function MessagesPage() {
                     </div>
                   )
                 })}
-                <div ref={endRef} className="h-2" />
+                <div className="h-2" />
               </div>
 
               <div className="shrink-0 border-t border-hairline bg-surface p-3">
@@ -1575,6 +1588,16 @@ export default function MessagesPage() {
                         ) : (
                           <Send size={18} aria-hidden="true" />
                         )}
+                      </button>
+                    ) : activeConv.participants.includes(AI_BOT_ID) && !aiAudioAvailable ? (
+                      <button
+                        type="button"
+                        disabled
+                        title="AI voice replies are unavailable until a transcription model is added to the gateway"
+                        aria-label="AI voice notes unavailable"
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface-sunken text-subtle opacity-50"
+                      >
+                        <Mic size={18} aria-hidden="true" />
                       </button>
                     ) : (
                       <button

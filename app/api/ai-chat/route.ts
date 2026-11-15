@@ -32,6 +32,12 @@ const apiKey = aetherKey
 /** A voice note that does not fit in this is not a voice note. */
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024
 
+export function GET() {
+  return NextResponse.json({
+    audioTranscription: Boolean(aetherKey && process.env.AETHER_TRANSCRIPTION_MODEL?.trim()),
+  })
+}
+
 const cap = (value: unknown, limit: number) => String(value ?? "").trim().slice(0, limit)
 
 /** The image path hands the URL to Groq, so it only has to be a real web URL. */
