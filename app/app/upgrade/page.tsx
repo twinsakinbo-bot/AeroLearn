@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { auth, onAuthStateChanged, type User } from "@/lib/auth"
-import { addDoc, collection, db, doc, serverTimestamp, updateDoc } from "@/lib/db"
+import { addDoc, collection, db, doc, getDoc, serverTimestamp, updateDoc } from "@/lib/db"
 import { getDownloadURL, ref, storage, uploadBytes } from "@/lib/storage"
 import {
   Ticket,
@@ -23,6 +23,7 @@ import { LoadingState } from "@/components/ui/loading-state"
 import { PageHeader } from "@/components/ui/page-header"
 import { cn } from "@/lib/utils"
 import { planById, PURCHASABLE_PLANS, type Plan } from "@/lib/plans"
+import { isProUser } from "@/lib/subscription"
 
 /**
  * Plan picker, manual bank-transfer checkout, and prepaid-code redemption.
@@ -39,13 +40,8 @@ import { planById, PURCHASABLE_PLANS, type Plan } from "@/lib/plans"
  * exist in exactly one place, so a plan added to that file appears here, is
  * accepted by `isProUser`, and can be approved in the queue without a second edit.
  *
- * Submitting a receipt used to overwrite `subscription` with `"pending"` and
- * `proExpiresAt` with now+24h. `isProUser` does not recognise `"pending"`, so
- * the "24-hour trust pass" the old success screen promised never actually
- * granted anything — and a member who submitted a renewal while still paid up
- * was downgraded on the spot. The pending state now lives on its own fields, so
- * an existing subscription is left exactly as it was, and the copy describes
- * what really happens: a person checks the receipt.
+ * Receipt submission leaves an existing paid plan alone. A server route grants
+ * a one-time 24-hour Trust Pass to a free account after the receipt is saved.
  *
  * The code panel is the faster of the two money paths and the one that needs no
  * human. A reseller, school or sponsor collects the transfer and hands over a
@@ -167,6 +163,9 @@ export default function UpgradePage() {
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [trustPassActive, setTrustPassActive] = useState(false)
+  const [trustPassError, setTrustPassError] = useState("")
+  const [recoveredPass, setRecoveredPass] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState("")
 
@@ -189,6 +188,30 @@ export default function UpgradePage() {
     })
     return () => unsubscribe()
   }, [router])
+
+  useEffect(() => {
+    if (!user) return
+    let live = true
+    const recoverPendingPass = async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", user.uid))
+        if (!live || !snap.exists() || !snap.data().pendingPlan || isProUser(snap.data())) return
+        const idToken = await user.getIdToken()
+        const response = await fetch("/api/subscription/trust-pass", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+          body: "{}",
+        })
+        if (!response.ok) return
+        const result = await response.json()
+        if (live && result.granted) setRecoveredPass(true)
+      } catch (cause) {
+        console.error("Could not recover a pending Trust Pass:", cause)
+      }
+    }
+    void recoverPendingPass()
+    return () => { live = false }
+  }, [user])
 
   const { evergreen, seasonal } = useMemo(() => {
     const regular: Plan[] = []
@@ -284,7 +307,7 @@ export default function UpgradePage() {
       await uploadBytes(target, file, { contentType: file.type || "application/octet-stream" })
       const receiptUrl = await getDownloadURL(target)
 
-      await addDoc(collection(db, "verificationRequests"), {
+      const receipt = await addDoc(collection(db, "verificationRequests"), {
         userId: user.uid,
         userEmail: user.email ?? "",
         userName: user.displayName ?? "",
@@ -307,6 +330,20 @@ export default function UpgradePage() {
         pendingSince: serverTimestamp(),
       })
 
+      setTrustPassError("")
+      try {
+        const idToken = await user.getIdToken()
+        const response = await fetch("/api/subscription/trust-pass", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ requestId: receipt.id }),
+        })
+        const pass = await response.json()
+        if (!response.ok) throw new Error(pass.error || "The Trust Pass could not start.")
+        setTrustPassActive(pass.granted === true)
+      } catch (cause) {
+        setTrustPassError(cause instanceof Error ? cause.message : "The Trust Pass could not start.")
+      }
       setSubmitted(true)
     } catch (cause) {
       console.error("Failed to submit the receipt:", cause)
@@ -362,18 +399,20 @@ export default function UpgradePage() {
         </span>
         <h1 className="mt-5 text-h2 font-bold text-foreground">Receipt received</h1>
         <p className="mt-3 text-body text-muted">
+          {trustPassActive ? "Your 24-hour Trust Pass is active now. " : ""}
           Someone checks each transfer by hand against the account, usually the same day. Your{" "}
-          <span className="font-semibold text-foreground">{plan?.name ?? "chosen"}</span> plan switches on as
-          soon as it clears — nothing else is needed from you.
+          <span className="font-semibold text-foreground">{plan?.name ?? "chosen"}</span> plan switches on
+          when the payment is approved.
         </p>
+        {trustPassError && <p role="alert" className="mt-3 text-body-sm text-danger">{trustPassError}</p>}
         <p className="mt-3 text-body-sm text-subtle">
           If the transfer was made from a different name to the one on your account, reply to the receipt email
           so it can be matched.
         </p>
         <div className="mt-7 flex flex-wrap justify-center gap-2">
-          <Link href="/app" className="btn-primary btn-sm">
+          <a href="/app" className="btn-primary btn-sm">
             Back to the dashboard
-          </Link>
+          </a>
           <button
             type="button"
             onClick={() => {
@@ -398,6 +437,11 @@ export default function UpgradePage() {
       />
 
       <div className="space-y-4">
+        {recoveredPass && (
+          <p role="status" className="card border-success/30 p-4 text-body-sm text-success">
+            Your pending receipt now has a 24-hour Trust Pass. <a href="/app" className="font-semibold underline">Open your dashboard</a> to refresh your access.
+          </p>
+        )}
         <section className="card border-accent/25 bg-accent/[0.03] p-5 sm:p-6">
           <div className="mb-4 flex items-start gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">

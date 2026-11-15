@@ -29,6 +29,8 @@ import { isNavActive, navGroups } from "@/components/ui/nav-config"
 import { useTheme } from "@/components/ui/theme-provider"
 import { Tooltip } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { isProUser } from "@/lib/subscription"
+import { planName } from "@/lib/plans"
 
 /**
  * Chrome for every signed-in page: sidebar, mobile drawer, tab bar, the
@@ -415,7 +417,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     .slice(0, 2)
 
   const photo = userProfile?.photoURL || user.photoURL
-  const isPro = userProfile?.subscription === "pro"
+  const isPro = isProUser(userProfile)
+  const planLabel = userProfile?.trustPassRequestId && isPro && userProfile.subscription === "pro"
+    ? "24-hour Trust Pass"
+    : isPro ? `${planName(userProfile?.subscription)} Pro`.replace("Pro Pro", "Pro") : "Free plan"
   const isAdmin = userProfile?.role === "admin"
   const unread: number = userProfile?.unreadMessagesCount || 0
   const streak: number = userProfile?.streak || 0
@@ -533,7 +538,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     {displayName}
                   </span>
                   <span className="block truncate text-caption text-muted">
-                    {isPro ? "Pro member" : "Free plan"}
+                    {planLabel}
                   </span>
                 </span>
               </Link>
@@ -639,7 +644,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       {displayName}
                     </span>
                     <span className="block truncate text-caption text-muted">
-                      {isPro ? "Pro member" : "Free plan"}
+                      {planLabel}
                     </span>
                   </span>
                 </div>

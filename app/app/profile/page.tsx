@@ -41,6 +41,8 @@ import { StatCard } from "@/components/ui/stat-card"
 import { JSS_SUBJECTS, SS_SUBJECTS_BY_DEPARTMENT, type Department } from "@/lib/constants"
 import { titleLabel } from "@/lib/store-items"
 import { cn } from "@/lib/utils"
+import { isProUser } from "@/lib/subscription"
+import { planName } from "@/lib/plans"
 
 /**
  * Account settings that are about *identity* — photo, name, school, subjects,
@@ -108,6 +110,12 @@ const PLAN_META: Record<
   monthly: {
     label: "Monthly Pro",
     hint: "Full access, renews monthly.",
+    icon: Crown,
+    chip: "bg-accent/10 text-accent",
+  },
+  pro: {
+    label: "24-hour Trust Pass",
+    hint: "Full access while your receipt is reviewed.",
     icon: Crown,
     chip: "bg-accent/10 text-accent",
   },
@@ -356,7 +364,16 @@ export default function ProfilePage() {
       : []
 
   const plan: string = profile?.subscription || "free"
-  const planMeta = PLAN_META[plan] ?? PLAN_META.free
+  const planMeta = !isProUser(profile)
+    ? PLAN_META.free
+    : plan === "pro" && !profile?.trustPassRequestId
+      ? { ...PLAN_META.pro, label: "Pro", hint: "Full access." }
+      : PLAN_META[plan] ?? {
+          label: `${planName(plan)} Pro`.replace("Pro Pro", "Pro"),
+          hint: "Full access during your plan.",
+          icon: Crown,
+          chip: "bg-accent/10 text-accent",
+        }
   const PlanIcon = planMeta.icon
   const savedSubjects: string[] = Array.isArray(profile?.subjects) ? profile.subjects : []
   const title = titleLabel(profile?.equippedTitle)
@@ -697,7 +714,7 @@ export default function ProfilePage() {
             <div className="min-w-0">
               <p className="text-body font-semibold text-foreground">{planMeta.label}</p>
               <p className="mt-1 text-body-sm text-muted">{planMeta.hint}</p>
-              {(plan === "weekly" || plan === "monthly") && (
+              {plan !== "lifetime" && isProUser(profile) && (
                 <p className="mt-1 text-caption text-subtle">
                   {renews ? `Runs until ${renews}.` : "Renewal date unavailable."}
                 </p>

@@ -36,6 +36,7 @@ import { LoadingState } from "@/components/ui/loading-state"
 import { PageHeader } from "@/components/ui/page-header"
 import type { PracticeQuestion } from "@/lib/types/question"
 import { cn } from "@/lib/utils"
+import { auth } from "@/lib/auth"
 
 /**
  * The question bank: filter, edit, delete.
@@ -128,6 +129,9 @@ export default function QuestionsPage() {
   const [deleting, setDeleting] = useState<PracticeQuestion | null>(null)
   const [removing, setRemoving] = useState(false)
   const [deleteError, setDeleteError] = useState("")
+  const [reviewingAloc, setReviewingAloc] = useState(false)
+  const [alocIssues, setAlocIssues] = useState<Record<string, string>>({})
+  const [alocReviewDone, setAlocReviewDone] = useState(false)
 
   const years = useMemo(() => {
     const now = new Date().getFullYear()
@@ -139,6 +143,8 @@ export default function QuestionsPage() {
       if (after) setLoadingMore(true)
       else setLoading(true)
       setError("")
+      setAlocIssues({})
+      setAlocReviewDone(false)
       try {
         const base = constraintsFor(applied)
         const snap = await getDocs(
@@ -225,12 +231,55 @@ export default function QuestionsPage() {
       const { id: _ignored, ...data } = updated
       await updateDoc(doc(db, "practiceQuestions", id), { ...data, updatedAt: new Date() })
       setRows((prev) => prev.map((row) => (row.id === id ? { ...updated, id } : row)))
+      setAlocIssues((prev) => { const next = { ...prev }; delete next[id]; return next })
       setEditingId(null)
     } catch (cause) {
       console.error("Failed to save the question:", cause)
       setSaveError(
         cause instanceof Error ? `Not saved: ${cause.message}` : "The question was not saved.",
       )
+    }
+  }
+
+  const reviewRecentAloc = async () => {
+    setReviewingAloc(true)
+    setError("")
+    setAlocIssues({})
+    setAlocReviewDone(false)
+    try {
+      const idToken = await auth.currentUser?.getIdToken()
+      if (!idToken) throw new Error("Sign in again as an admin.")
+      const snap = await getDocs(query(
+        collection(db, "practiceQuestions"),
+        where("source", "==", "ALOC"),
+        orderBy("createdAt", "desc"),
+        limit(40),
+      ))
+      const batch = snap.docs.map(questionFrom)
+      setRows(batch)
+      setCursor(null)
+      setHasMore(false)
+      if (batch.length === 0) {
+        setAlocReviewDone(true)
+        return
+      }
+      const response = await fetch("/api/aloc/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ questions: batch }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "AI review failed.")
+      const issues: Record<string, string> = {}
+      for (const issue of result.issues ?? []) {
+        if (batch[issue.index]?.id) issues[batch[issue.index].id!] = issue.reason
+      }
+      setAlocIssues(issues)
+      setAlocReviewDone(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not review imported questions.")
+    } finally {
+      setReviewingAloc(false)
     }
   }
 
@@ -281,6 +330,9 @@ export default function QuestionsPage() {
               <UploadCloud size={14} aria-hidden="true" />
               Import questions
             </Link>
+            <button type="button" onClick={() => void reviewRecentAloc()} disabled={reviewingAloc} className="btn-secondary btn-sm">
+              {reviewingAloc ? "Reviewing ALOC…" : "Review recent ALOC imports"}
+            </button>
           </>
         }
       />
@@ -437,6 +489,11 @@ export default function QuestionsPage() {
           {saveError}
         </p>
       )}
+      {alocReviewDone && (
+        <p role="status" className="mb-4 text-body-sm text-muted">
+          Reviewed {rows.length} recent ALOC question{rows.length === 1 ? "" : "s"}. {Object.keys(alocIssues).length} need attention. Edit or delete flagged questions below. This review does not change stored questions automatically.
+        </p>
+      )}
       {loading ? (
         <LoadingState text="Loading questions…" className="py-16" />
       ) : visible.length === 0 && !error ? (
@@ -492,7 +549,13 @@ export default function QuestionsPage() {
                       ) : (
                         <span className="badge bg-warn/10 text-warn">No explanation</span>
                       )}
+                      {row.id && alocIssues[row.id] && (
+                        <span className="badge bg-warn/10 text-warn">Needs review</span>
+                      )}
                     </div>
+                    {row.id && alocIssues[row.id] && (
+                      <p className="mt-2 text-caption text-warn">{alocIssues[row.id]}</p>
+                    )}
                   </div>
                   <div className="flex shrink-0 gap-1">
                     <button

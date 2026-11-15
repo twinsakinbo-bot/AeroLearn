@@ -255,6 +255,7 @@ export default function AdminSubscriptionsPage() {
         proExpiresAt: expiresAt,
         pendingPlan: deleteField(),
         pendingSince: deleteField(),
+        trustPassRequestId: deleteField(),
       })
 
       await updateDoc(doc(db, "verificationRequests", request.id), {
@@ -285,12 +286,18 @@ export default function AdminSubscriptionsPage() {
         reviewedAt: serverTimestamp(),
       })
 
-      /* Only the pending marker is cleared. `subscription` and `proExpiresAt`
-         are left alone: a declined renewal must not cancel the time already
-         paid for. */
-      await updateDoc(doc(db, "users", request.userId), {
+      const userRef = doc(db, "users", request.userId)
+      const user = await getDoc(userRef)
+      const passForThisReceipt = user.exists() &&
+        user.data().trustPassRequestId === request.id && user.data().subscription === "pro"
+      await updateDoc(userRef, {
         pendingPlan: deleteField(),
         pendingSince: deleteField(),
+        ...(passForThisReceipt ? {
+          /* Keep the expired `pro` marker so a declined receipt cannot be
+             resubmitted for unlimited 24-hour passes. */
+          proExpiresAt: new Date(0),
+        } : {}),
       })
 
       setRequests((rows) => rows.filter((row) => row.id !== request.id))
