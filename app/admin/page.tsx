@@ -23,6 +23,7 @@ import {
   FileText,
   HelpCircle,
   RefreshCw,
+  Sparkles,
   Upload,
   Users,
   type LucideIcon,
@@ -58,11 +59,8 @@ import { cn } from "@/lib/utils"
  *    behind it, and every tile carried a "Live" chip although the data is a
  *    one-shot fetch. Both removed.
  *
- * The homework figure still needs a full read of `lessons`, because homework is
- * an array inside each lesson document and Firestore cannot aggregate across
- * array lengths. That read is now shared with the lesson half of the activity
- * feed instead of being done twice. If `lessons` grows past a few thousand
- * documents this stat needs a counter document maintained on write.
+ * The activity feed reads lesson documents to show recent lesson and homework
+ * changes. The same read counts lessons that passed the AI review pipeline.
  */
 
 type Metric = {
@@ -91,7 +89,7 @@ const KIND_META: Record<Feed["kind"], { icon: LucideIcon; chip: string }> = {
 const QUICK_ACTIONS: { label: string; hint: string; href: string; icon: LucideIcon }[] = [
   { label: "Import questions", hint: "Upload a CSV or JSON of past questions", href: "/admin/question-importer", icon: Upload },
   { label: "Sync with ALOC", hint: "Pull free past questions over the API", href: "/admin/aloc-sync", icon: Database },
-  { label: "Import lessons", hint: "Load a syllabus file into the lesson bank", href: "/admin/lesson-importer", icon: Upload },
+  { label: "Generate lessons", hint: "Write and AI review current NERDC topics", href: "/admin/lesson-generator", icon: Sparkles },
   { label: "Edit a lesson", hint: "Fix note content, examples and homework", href: "/admin/lesson-editor", icon: FileText },
   { label: "Curriculum", hint: "Subjects, terms and topic ordering", href: "/admin/curriculum", icon: BookOpen },
   { label: "Students", hint: "Accounts, class levels and progress", href: "/admin/students", icon: Users },
@@ -125,7 +123,7 @@ const INITIAL_METRICS: Metric[] = [
   { label: "Students", value: null, icon: Users, tone: "accent", hint: "Excluding staff accounts", href: "/admin/students" },
   { label: "Questions", value: null, icon: HelpCircle, tone: "brand", hint: "In the practice bank", href: "/admin/questions" },
   { label: "Lessons", value: null, icon: FileText, tone: "success", hint: "Published notes", href: "/admin/curriculum" },
-  { label: "Homework items", value: null, icon: ClipboardList, tone: "warn", hint: "Across all lessons", href: "/admin/lesson-editor" },
+  { label: "AI-reviewed lessons", value: null, icon: Sparkles, tone: "warn", hint: "Published after AI review", href: "/admin/lesson-generator" },
 ]
 
 export default function AdminOverview() {
@@ -147,12 +145,14 @@ export default function AdminOverview() {
       ])
 
       let homework = 0
+      let aiReviewed = 0
       const rows: Feed[] = []
 
       lessonSnap.docs.forEach((entry) => {
         const data = entry.data()
         const tasks = Array.isArray(data.homework) ? data.homework.length : 0
         homework += tasks
+        if (data.aiReviewedAt) aiReviewed++
 
         const at = toDate(data.createdAt)
         if (!at) return
@@ -192,7 +192,7 @@ export default function AdminOverview() {
         Students: students,
         Questions: questions.data().count,
         Lessons: lessonSnap.size,
-        "Homework items": homework,
+        "AI-reviewed lessons": aiReviewed,
       }
       setMetrics(INITIAL_METRICS.map((metric) => ({ ...metric, value: totals[metric.label] ?? null })))
     } catch (cause) {

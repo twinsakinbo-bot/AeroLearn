@@ -174,6 +174,7 @@ export async function POST(request: Request) {
       subject,
       term: topic.term,
       topicTitle: topic.title,
+      chapter: plan.topics.findIndex((item) => item.title === topic.title) + 1,
       content: previous.content,
       examples: [],
       homework: [],

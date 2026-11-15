@@ -31,6 +31,7 @@ export interface Lesson {
   classLevel: string // e.g., "JSS 1", "SS 2"
   term: TermLevel
   topicTitle: string
+  chapter?: number // Position in the published curriculum plan.
   content: string // Markdown formatted notes
   examples?: LessonExample[]
   homework?: PracticeQuestion[] // We can reuse the PracticeQuestion type for homework!

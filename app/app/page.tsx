@@ -11,8 +11,7 @@ import {
   BookOpen,
   CheckCircle2,
   ChevronRight,
-  Coins,
-  Flame,
+  MessageCircle,
   Loader2,
   Sparkles,
   Target,
@@ -21,14 +20,11 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { AvailabilityPanel } from "@/components/ui/availability"
 import { EmptyState } from "@/components/ui/empty-state"
 import { LoadingState } from "@/components/ui/loading-state"
 import { PageHeader } from "@/components/ui/page-header"
 import { ProgressBar } from "@/components/ui/progress-bar"
-import { StatCard } from "@/components/ui/stat-card"
 import { SubjectIcon } from "@/components/ui/subject-icon"
-import { getUserSubscription, type UserSubscriptionInfo } from "@/lib/subscription"
 import { cn } from "@/lib/utils"
 
 /**
@@ -71,7 +67,7 @@ import { cn } from "@/lib/utils"
 
 type Banner = { tone: "success" | "error"; text: string }
 
-type LessonRow = { id: string; subject?: string; topicTitle?: string; chapter?: number }
+type LessonRow = { id: string; subject?: string; topicTitle?: string; chapter?: number; term?: string }
 
 function greetingFor(hour: number) {
   if (hour < 12) return "Good morning"
@@ -93,15 +89,13 @@ export default function DashboardPage() {
   const router = useRouter()
 
   const [profile, setProfile] = useState<any>(null)
-  const [subscription, setSubscription] = useState<UserSubscriptionInfo | null>(null)
   const [nextLesson, setNextLesson] = useState<LessonRow | null>(null)
   const [subjectProgress, setSubjectProgress] = useState<Record<string, number>>({})
+  const [publishedSubjects, setPublishedSubjects] = useState<string[]>([])
   const [totalLessons, setTotalLessons] = useState(0)
   const [greeting, setGreeting] = useState("Hello")
   const [loading, setLoading] = useState(true)
   const [banner, setBanner] = useState<Banner | null>(null)
-  const [schoolInput, setSchoolInput] = useState("")
-  const [savingSchool, setSavingSchool] = useState(false)
   const [claiming, setClaiming] = useState<"xp" | "lessons" | null>(null)
   const [starting, setStarting] = useState(false)
 
@@ -154,8 +148,6 @@ export default function DashboardPage() {
           }
         }
 
-        setSubscription(await getUserSubscription(user.uid))
-
         const classLevel: string = data.classLevel || "SS3"
         const subjects: string[] = Array.isArray(data.subjects) ? data.subjects : []
         const completed: string[] = data.completedLessons || []
@@ -174,12 +166,14 @@ export default function DashboardPage() {
             if (!bySubject[row.subject]) bySubject[row.subject] = []
             bySubject[row.subject].push(row)
           })
+          const allSubjects = Array.from(new Set([...subjects, ...Object.keys(bySubject)]))
+          setPublishedSubjects(Object.keys(bySubject))
 
           const progress: Record<string, number> = {}
           let count = 0
           let upNext: LessonRow | null = null
 
-          subjects.forEach((subject) => {
+          allSubjects.forEach((subject) => {
             const list = [...(bySubject[subject] ?? [])].sort(
               (a, b) => (a.chapter ?? 0) - (b.chapter ?? 0),
             )
@@ -222,23 +216,6 @@ export default function DashboardPage() {
     router.push(nextLesson ? `/app/learn/${nextLesson.id}` : "/app/learn")
   }
 
-  const saveSchool = async () => {
-    if (!auth.currentUser || !schoolInput.trim()) return
-    setSavingSchool(true)
-    setBanner(null)
-    try {
-      const schoolName = schoolInput.trim()
-      await updateDoc(doc(db, "users", auth.currentUser.uid), { schoolName })
-      setProfile((prev: any) => ({ ...prev, schoolName }))
-      setBanner({ tone: "success", text: "School saved." })
-    } catch (error) {
-      console.error("Failed to save the school:", error)
-      setBanner({ tone: "error", text: "That did not save. Check your connection and try again." })
-    } finally {
-      setSavingSchool(false)
-    }
-  }
-
   const claimQuest = async (type: "xp" | "lessons") => {
     if (!auth.currentUser) return
     setClaiming(type)
@@ -269,10 +246,8 @@ export default function DashboardPage() {
 
   const name = profile?.displayName?.split(" ")[0] || "Student"
   const classLevel: string = profile?.classLevel || "SS3"
-  const subjects: string[] = Array.isArray(profile?.subjects) ? profile.subjects : []
+  const subjects: string[] = Array.from(new Set([...(Array.isArray(profile?.subjects) ? profile.subjects as string[] : []), ...publishedSubjects]))
   const xp: number = profile?.xp ?? 0
-  const coins: number = profile?.coins ?? 0
-  const streak: number = profile?.streak ?? 0
   const completedCount: number = profile?.completedLessons?.length ?? 0
 
   const quests = profile?.quests ?? { xpTier: 1, lessonsTier: 1 }
@@ -281,17 +256,12 @@ export default function DashboardPage() {
   const xpClaimable = xp >= xpTarget
   const lessonsClaimable = completedCount >= lessonsTarget
 
-  const schoolMissing =
-    profile?.learningMode === "school" &&
-    (classLevel.startsWith("JSS") || classLevel.startsWith("SS")) &&
-    !profile?.schoolName
-
   return (
     <div className="animate-fade-in space-y-8">
       <PageHeader
         eyebrow={profile?.schoolName ? `${classLevel} · ${profile.schoolName}` : `${classLevel} student`}
         title={`${greeting}, ${name}.`}
-        subtitle="Here is where you stand, and the next thing worth doing."
+        subtitle="Pick up a lesson or choose how you want to study."
       />
 
       {banner && (
@@ -306,60 +276,6 @@ export default function DashboardPage() {
         >
           {banner.text}
         </p>
-      )}
-
-      {schoolMissing && (
-        <section className="rounded-xl border border-warn/30 bg-warn/[0.06] p-5 sm:p-6">
-          <h2 className="text-body font-semibold text-foreground">Add your school</h2>
-          <p className="mt-1 max-w-2xl text-body-sm text-muted">
-            We use it to match your school&apos;s curriculum pace, place you on inter-school
-            leaderboards, and help you find classmates.
-          </p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <div className="flex-1">
-              <label htmlFor="school-name" className="sr-only">
-                School name
-              </label>
-              <input
-                id="school-name"
-                value={schoolInput}
-                onChange={(event) => setSchoolInput(event.target.value)}
-                placeholder="e.g. King's College Lagos"
-                className="input-premium"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => void saveSchool()}
-              disabled={!schoolInput.trim() || savingSchool}
-              className="btn-primary sm:w-32 sm:shrink-0"
-            >
-              {savingSchool ? (
-                <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-              ) : (
-                "Save"
-              )}
-            </button>
-          </div>
-        </section>
-      )}
-
-      {subscription && !subscription.isPro && (
-        <section className="flex flex-col gap-4 rounded-xl border border-accent/25 bg-accent/[0.05] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div>
-            <h2 className="flex items-center gap-2 text-body font-semibold text-foreground">
-              <Zap size={16} className="text-accent" aria-hidden="true" />
-              Unlimited practice and AI explanations
-            </h2>
-            <p className="mt-1 text-body-sm text-muted">
-              Pro removes the daily caps on practice sets, mock exams and the tutor.
-            </p>
-          </div>
-          <Link href="/app/upgrade" className="btn-primary shrink-0">
-            See plans
-            <ChevronRight size={16} aria-hidden="true" />
-          </Link>
-        </section>
       )}
 
       {subjects.length === 0 ? (
@@ -384,7 +300,7 @@ export default function DashboardPage() {
           </h2>
           <p className="mt-2 text-body text-muted">
             {nextLesson
-              ? `${nextLesson.subject} · Chapter ${nextLesson.chapter ?? 1}`
+              ? `${nextLesson.subject} · ${nextLesson.term || "Lesson notes"}`
               : totalLessons > 0
                 ? "Keep the streak alive with a practice set or a timed mock exam."
                 : "We are still writing this class. Practice questions are already available."}
@@ -413,36 +329,32 @@ export default function DashboardPage() {
                 <ChevronRight size={16} aria-hidden="true" />
               </Link>
             )}
-            <Link href="/app/learn" className="btn-secondary">
+            {totalLessons > 0 && <Link href="/app/learn" className="btn-secondary">
               Browse all lessons
-            </Link>
+            </Link>}
           </div>
         </section>
       )}
 
-      <AvailabilityPanel />
+      <section aria-labelledby="study-shortcuts-title">
+        <h2 id="study-shortcuts-title" className="mb-4 text-h3 text-foreground">Study now</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link href="/app/practice" className="card-interactive flex items-center gap-4 p-5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent"><Target size={21} aria-hidden="true" /></span>
+            <span><span className="block text-body font-semibold text-foreground">Practice questions</span><span className="text-caption text-muted">Try a short set for your subjects</span></span>
+            <ChevronRight size={17} className="ml-auto text-subtle" aria-hidden="true" />
+          </Link>
+          <Link href="/app/messages" className="card-interactive flex items-center gap-4 p-5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent"><MessageCircle size={21} aria-hidden="true" /></span>
+            <span><span className="block text-body font-semibold text-foreground">Ask the AI tutor</span><span className="text-caption text-muted">Get help with a question</span></span>
+            <ChevronRight size={17} className="ml-auto text-subtle" aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Streak"
-          value={streak}
-          hint={`Best ${profile?.longestStreak ?? 0} days`}
-          icon={Flame}
-          tone={streak > 0 ? "streak" : "neutral"}
-        />
-        <StatCard label="Total XP" value={xp} icon={Zap} tone="accent" href="/app/progress" />
-        <StatCard
-          label="Lessons done"
-          value={completedCount}
-          hint={totalLessons > 0 ? `of ${totalLessons} in ${classLevel}` : undefined}
-          icon={CheckCircle2}
-          tone="success"
-        />
-        <StatCard label="Coins" value={coins} icon={Coins} tone="warn" href="/app/store" />
-      </div>
-
-      <div className="grid gap-8 lg:grid-cols-3">
-        <section className="lg:col-span-2">
+      {(totalLessons > 0 || xp > 0 || completedCount > 0) && <div className="grid gap-8 lg:grid-cols-3">
+        {totalLessons > 0 && (
+        <section className={xp > 0 || completedCount > 0 ? "lg:col-span-2" : "lg:col-span-3"}>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
               <h2 className="text-h3 text-foreground">Your subjects</h2>
@@ -465,7 +377,7 @@ export default function DashboardPage() {
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2">
 
-              {subjects.map((subject) => {
+              {publishedSubjects.map((subject) => {
                 const progress = subjectProgress[subject] ?? 0
                 const done = progress === 100
                 return (
@@ -510,8 +422,9 @@ export default function DashboardPage() {
             </ul>
           )}
         </section>
+        )}
 
-        <aside className="lg:col-span-1">
+        {(xp > 0 || completedCount > 0) && <aside className={totalLessons > 0 ? "lg:col-span-1" : "lg:col-span-3 max-w-xl"}>
           <div className="card p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -548,8 +461,8 @@ export default function DashboardPage() {
               />
             </div>
           </div>
-        </aside>
-      </div>
+        </aside>}
+      </div>}
     </div>
   )
 }

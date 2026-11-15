@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { BookOpen, Loader2, RefreshCw, Sparkles } from "lucide-react"
 
 import { PageHeader } from "@/components/ui/page-header"
@@ -15,6 +16,7 @@ type Draft = Topic & {
   content: string
   status: "awaiting_ai_review" | "needs_revision" | "published"
   review?: { approved: boolean; issues: string[] }
+  publishedLessonId?: string
 }
 
 async function pipeline(method: "GET" | "POST", params: Record<string, string>) {
@@ -185,7 +187,9 @@ export default function LessonGeneratorPage() {
                       <p className="mt-1 text-caption text-muted">{topic.term} · {topic.scope}</p>
                       <p className="mt-1 text-caption font-semibold text-muted">{draft?.status === "published" ? "Published after AI review" : draft?.status === "needs_revision" ? "Held for revision" : draft?.status === "awaiting_ai_review" ? "Awaiting AI review" : "Not written"}</p>
                     </div>
-                    {draft?.status !== "published" && <button type="button" className="btn-secondary btn-sm" disabled={working} onClick={() => void runTopics([topic.title])}>{draft?.status === "needs_revision" ? "Revise and review" : "Write and review"}</button>}
+                    {draft?.status === "published" && draft.publishedLessonId ? (
+                      <Link href={`/admin/lesson-editor?lesson=${draft.publishedLessonId}`} className="btn-secondary btn-sm">Find a video</Link>
+                    ) : <button type="button" className="btn-secondary btn-sm" disabled={working} onClick={() => void runTopics([topic.title])}>{draft?.status === "needs_revision" ? "Revise and review" : "Write and review"}</button>}
                   </div>
                   {draft?.review?.issues?.length ? <ul className="ml-8 mt-2 list-disc text-caption text-warn">{draft.review.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : null}
                   {draft?.content && <details className="ml-8 mt-2"><summary className="cursor-pointer text-caption text-accent">Read draft</summary><pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-sunken p-3 text-caption text-foreground">{draft.content}</pre></details>}

@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils"
  * no handler.
  */
 
-type StoredNote = Omit<Note, "content"> & { id: string; content: NoteBlock[] | string }
+type StoredNote = Omit<Note, "content"> & { id: string; content: NoteBlock[] | string; videoUrl?: string }
 
 /** Presentation for each block type a note can contain. */
 const CALLOUTS: Partial<Record<NoteBlock["type"], { label: string; className: string }>> = {
@@ -150,6 +150,7 @@ export default function NotesPage() {
               topic: String(lesson.topicTitle || ""),
               title: String(lesson.topicTitle || "Lesson notes"),
               content,
+              videoUrl: typeof lesson.videoUrl === "string" ? lesson.videoUrl : "",
               isPublished: true,
             } satisfies StoredNote]
           })
@@ -165,8 +166,10 @@ export default function NotesPage() {
   }, [router])
 
   const subjects = useMemo(
-    () => (Array.isArray(profile?.subjects) ? (profile!.subjects as string[]) : []),
-    [profile],
+    () => notes.length > 0
+      ? Array.from(new Set(notes.map((note) => note.subject)))
+      : (Array.isArray(profile?.subjects) ? (profile!.subjects as string[]) : []),
+    [profile, notes],
   )
 
   const countBySubject = useMemo(() => {
@@ -233,6 +236,14 @@ export default function NotesPage() {
               <Block key={index} block={block} />
             ))}
           </div>
+        )}
+        {openNote.videoUrl && /^https:\/\/(?:www\.youtube\.com\/embed\/[a-zA-Z0-9_-]{11}|player\.vimeo\.com\/video\/\d+)/.test(openNote.videoUrl) && (
+          <section className="mt-7">
+            <h2 className="mb-3 text-h4 font-semibold text-foreground">Watch the lesson</h2>
+            <div className="relative aspect-video overflow-hidden rounded-xl border border-hairline bg-ink-950">
+              <iframe src={openNote.videoUrl} title={`Video for ${openNote.title}`} className="absolute inset-0 h-full w-full" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+            </div>
+          </section>
         )}
       </article>
     )

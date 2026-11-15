@@ -11,6 +11,7 @@ import {
   FileText,
   Plus,
   RefreshCw,
+  Search,
   Save,
   Trash2,
   Video,
@@ -174,6 +175,11 @@ export default function AdminLessonEditorPage() {
   const [aiDraftSources, setAiDraftSources] = useState<Array<{ title: string; url: string }>>([])
   const [usingAiDraft, setUsingAiDraft] = useState(false)
   const [videoUrl, setVideoUrl] = useState("")
+  const [videoQuery, setVideoQuery] = useState("")
+  const [videoResults, setVideoResults] = useState<Array<{ id: string; title: string; channel: string; thumbnail: string; url: string }>>([])
+  const [videoSearchUrl, setVideoSearchUrl] = useState("")
+  const [videoSearchError, setVideoSearchError] = useState("")
+  const [videoSearching, setVideoSearching] = useState(false)
   const [homework, setHomework] = useState<PracticeQuestion[]>([])
 
   const [saving, setSaving] = useState(false)
@@ -266,6 +272,10 @@ export default function AdminLessonEditorPage() {
     setNotes(selected.content)
     setUsingAiDraft(false)
     setVideoUrl(selected.videoUrl)
+    setVideoQuery(`${selected.topicTitle} ${selected.subject} ${selected.classLevel} lesson`)
+    setVideoResults([])
+    setVideoSearchUrl("")
+    setVideoSearchError("")
     setHomework(selected.homework.map(cloneQuestion))
     setSaveError(null)
   }, [selected])
@@ -394,6 +404,31 @@ export default function AdminLessonEditorPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const searchVideos = async () => {
+    if (!auth.currentUser || videoQuery.trim().length < 3) {
+      setVideoSearchError("Enter a topic and sign in before searching.")
+      return
+    }
+    setVideoSearching(true)
+    setVideoSearchError("")
+    setVideoResults([])
+    try {
+      const token = await auth.currentUser.getIdToken()
+      const response = await fetch(`/api/lessons/video-search?q=${encodeURIComponent(videoQuery.trim())}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Video search failed.")
+      setVideoResults(Array.isArray(data.results) ? data.results : [])
+      setVideoSearchUrl(data.searchUrl || "")
+      if (data.needsApiKey) setVideoSearchError("In-app suggestions need a YouTube API key. Open the search below and paste a video link.")
+      else if (data.error) setVideoSearchError(data.error)
+      else if (!data.results?.length) setVideoSearchError("No embeddable videos found. Try a different search.")
+    } catch (cause) {
+      setVideoSearchError(cause instanceof Error ? cause.message : "Video search failed.")
+    } finally { setVideoSearching(false) }
   }
 
   const words = notes.trim() ? notes.trim().split(/\s+/).length : 0
@@ -577,6 +612,30 @@ export default function AdminLessonEditorPage() {
                     Video
                   </h2>
                 </div>
+
+                <label htmlFor="video-search" className="field-label">Find a lesson video</label>
+                <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                  <input id="video-search" className="input-premium flex-1" value={videoQuery} onChange={(event) => setVideoQuery(event.target.value)} placeholder="Search by topic and subject" />
+                  <button type="button" className="btn-secondary shrink-0" disabled={videoSearching || videoQuery.trim().length < 3} onClick={() => void searchVideos()}>
+                    <Search size={16} aria-hidden="true" /> {videoSearching ? "Searching…" : "Find videos"}
+                  </button>
+                </div>
+                {videoSearchError && <p role="status" className="mt-2 text-caption text-muted">{videoSearchError}</p>}
+                {videoSearchUrl && <a href={videoSearchUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-caption font-semibold text-accent underline">Open this search on YouTube</a>}
+                {videoResults.length > 0 && (
+                  <ul className="my-4 grid gap-2 sm:grid-cols-2">
+                    {videoResults.map((result) => (
+                      <li key={result.id} className="flex gap-3 rounded-lg border border-hairline p-2">
+                        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded bg-accent/10 text-accent"><Video size={22} aria-hidden="true" /></span>
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-2 text-caption font-semibold text-foreground">{result.title}</p>
+                          <p className="truncate text-caption text-muted">{result.channel}</p>
+                          <button type="button" className="mt-1 text-caption font-semibold text-accent underline" onClick={() => setVideoUrl(result.url)}>Use this video</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
                 <label htmlFor="lesson-video" className="field-label">
                   YouTube or Vimeo link

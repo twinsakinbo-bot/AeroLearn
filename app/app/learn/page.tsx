@@ -39,6 +39,7 @@ export default function LearnPage() {
   const [subject, setSubject] = useState<string | null>(null)
   const [classLevel, setClassLevel] = useState<string>("SS 3")
   const [lessons, setLessons] = useState<StoredLesson[]>([])
+  const [publishedSubjects, setPublishedSubjects] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingLessons, setLoadingLessons] = useState(false)
 
@@ -47,7 +48,7 @@ export default function LearnPage() {
     const wanted = new URLSearchParams(window.location.search).get("subject")
     if (!wanted) return
     const match = SUBJECTS.find((name) => name.toLowerCase() === wanted.toLowerCase())
-    if (match) setSubject(match)
+    setSubject(match || wanted)
   }, [])
 
   useEffect(() => {
@@ -71,6 +72,16 @@ export default function LearnPage() {
     })
     return () => unsubscribe()
   }, [router])
+
+  useEffect(() => {
+    let cancelled = false
+    getDocs(query(collection(db, "lessons"), where("classLevel", "==", classLevel)))
+      .then((snap) => {
+        if (!cancelled) setPublishedSubjects(Array.from(new Set(snap.docs.map((entry) => String(entry.data().subject || "")).filter(Boolean))))
+      })
+      .catch((error) => console.error("Could not list published subjects:", error))
+    return () => { cancelled = true }
+  }, [classLevel])
 
   useEffect(() => {
     if (!subject) return
@@ -113,8 +124,10 @@ export default function LearnPage() {
   /** The student's own subjects when they have chosen any, else all of them. */
   const mySubjects = useMemo(() => {
     const chosen = Array.isArray(profile?.subjects) ? (profile!.subjects as string[]) : []
-    return chosen.length > 0 ? SUBJECTS.filter((name) => chosen.includes(name)) : [...SUBJECTS]
-  }, [profile])
+    if (publishedSubjects.length > 0) return publishedSubjects
+    const selected = chosen.length > 0 ? SUBJECTS.filter((name) => chosen.includes(name)) : [...SUBJECTS]
+    return selected
+  }, [profile, publishedSubjects])
 
   const terms = useMemo(() => {
     const groups = new Map<string, StoredLesson[]>()
@@ -124,7 +137,7 @@ export default function LearnPage() {
       if (bucket) bucket.push(lesson)
       else groups.set(term, [lesson])
     }
-    return [...groups.entries()].sort(([a], [b]) => termRank(a) - termRank(b))
+    return [...groups.entries()].sort(([a], [b]) => termRank(a) - termRank(b)).map(([term, list]) => [term, list.sort((a, b) => (Number(a.chapter) || 0) - (Number(b.chapter) || 0))] as [string, StoredLesson[]])
   }, [lessons])
 
   /* The subject lives in state, so keep the URL honest for a reload or a share. */
