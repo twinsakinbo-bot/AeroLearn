@@ -20,15 +20,15 @@
  *   text happened to come first.
  */
 
-import { EMAIL_LOGO_HEIGHT, EMAIL_LOGO_URL, EMAIL_LOGO_WIDTH, SITE_HOST, siteUrl } from "@/lib/site"
+import { EMAIL_LOGO_URL, SITE_HOST, siteUrl } from "@/lib/site"
 
 /* The brand, as literals. Email clients strip <style> and custom properties, so
    every colour has to be inline — these are the values from globals.css that the
    old templates had each spelled out by hand. */
 const NAVY = "#1E3A8A"
 const BODY_TEXT = "#475569"
-const MUTED_TEXT = "#94A3B8"
-const CANVAS = "#F1F5F9"
+const MUTED_TEXT = "#64748B"
+const CANVAS = "#F5F7FB"
 const CARD = "#FFFFFF"
 const HAIRLINE = "#E2E8F0"
 
@@ -120,11 +120,11 @@ export function emailCta({ label, href, tone = "brand" }: EmailCta): string {
   const url = href.startsWith("http") ? href : siteUrl(href)
   const fill = tone === "accent" ? "#0891B2" : NAVY
   return [
-    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:4px auto 8px;">`,
-    `<tr><td align="center" bgcolor="${fill}" style="border-radius:50px;">`,
-    `<a href="${url}" style="display:inline-block;padding:15px 34px;font-family:${FONT};`,
-    `font-size:16px;font-weight:800;letter-spacing:0.3px;color:#FFFFFF;text-decoration:none;`,
-    `border-radius:50px;">${label} &rarr;</a>`,
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:4px 0 8px;">`,
+    `<tr><td align="center" bgcolor="${fill}" style="border-radius:11px;">`,
+    `<a href="${url}" style="display:inline-block;padding:14px 22px;font-family:${FONT};`,
+    `font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;`,
+    `border-radius:11px;">${label} &rarr;</a>`,
     `</td></tr></table>`,
   ].join("")
 }
@@ -144,9 +144,8 @@ export type EmailLayout = {
 /** Wraps body HTML in the logo header, white card and sign-off. */
 export function emailLayout({ preheader, heading, body, cta, footnote }: EmailLayout): string {
   const logo =
-    `<img src="${EMAIL_LOGO_URL}" width="${EMAIL_LOGO_WIDTH}" height="${EMAIL_LOGO_HEIGHT}"` +
-    ` alt="AeroLearn" style="display:block;border:0;outline:none;` +
-    `width:${EMAIL_LOGO_WIDTH}px;height:${EMAIL_LOGO_HEIGHT}px;" />`
+    `<img src="${EMAIL_LOGO_URL}" width="38" height="37"` +
+    ` alt="" style="display:block;border:0;outline:none;width:38px;height:37px;" />`
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -159,22 +158,28 @@ export function emailLayout({ preheader, heading, body, cta, footnote }: EmailLa
 <body style="margin:0;padding:0;background-color:${CANVAS};">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${CANVAS};">
-<tr><td align="center" style="padding:32px 16px 40px;">
+<tr><td align="center" style="padding:24px 16px 32px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;">
-<tr><td align="center" style="padding-bottom:26px;">
-<a href="${siteUrl("/")}" style="text-decoration:none;">${logo}</a>
+<tr><td style="background-color:${CARD};border:1px solid ${HAIRLINE};border-radius:18px;font-family:${FONT};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding:23px 32px;border-bottom:1px solid ${HAIRLINE};">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td width="38" valign="middle">${logo}</td>
+<td valign="middle" style="padding-left:11px;font-family:${FONT};font-size:20px;line-height:1.2;font-weight:800;letter-spacing:-0.4px;">
+<a href="${siteUrl("/")}" style="text-decoration:none;"><span style="color:#1D4E89;">Aero</span><span style="color:#D05713;">Learn</span></a>
+</td></tr></table>
 </td></tr>
-<tr><td style="background-color:${CARD};border:1px solid ${HAIRLINE};border-radius:16px;padding:36px 32px;font-family:${FONT};">
-<h1 style="margin:0 0 16px;color:${NAVY};font-size:25px;line-height:1.25;font-weight:900;">${heading}</h1>
+<tr><td style="padding:32px 32px 34px;">
+<h1 style="margin:0 0 18px;color:#17243D;font-size:27px;line-height:1.25;font-weight:750;letter-spacing:-0.5px;">${heading}</h1>
 ${body}${cta ? emailCta(cta) : ""}${
     footnote
-      ? `<p style="margin:24px 0 0;color:${MUTED_TEXT};font-size:13px;line-height:1.6;">${footnote}</p>`
+      ? `<p style="clear:both;margin:28px 0 0;padding-top:20px;border-top:1px solid ${HAIRLINE};color:${MUTED_TEXT};font-size:13px;line-height:1.6;">${footnote}</p>`
       : ""
   }
+</td></tr></table>
 </td></tr>
-<tr><td align="center" style="padding-top:26px;font-family:${FONT};">
-<p style="margin:0 0 4px;color:${MUTED_TEXT};font-size:14px;font-weight:600;">Happy learning!</p>
-<p style="margin:0 0 14px;color:#64748B;font-size:14px;font-weight:700;">The AeroLearn Team</p>
+<tr><td align="center" style="padding-top:20px;font-family:${FONT};">
+<p style="margin:0 0 6px;color:${MUTED_TEXT};font-size:13px;line-height:1.5;">AeroLearn · A little progress every day</p>
 <a href="${siteUrl("/")}" style="color:${MUTED_TEXT};font-size:13px;text-decoration:none;">${SITE_HOST}</a>
 </td></tr>
 </table>
