@@ -9,9 +9,10 @@ import { GET as readPipeline, POST as runPipeline } from "@/app/api/lessons/pipe
 export const maxDuration = 300
 
 type Plan = { topics: Array<{ title: string }> }
-type Draft = { status: "awaiting_ai_review" | "needs_revision" | "published" } | null
+type Draft = { status: "writing" | "awaiting_ai_review" | "needs_revision" | "published" } | null
 
 async function execute(request: Request) {
+  const startedAt = Date.now()
   const gate = await requireSchedulerOrAdmin(request)
   if (!gate.ok) return gate.response
   if (!process.env.CRON_SECRET && gate.uid === "cron") {
@@ -64,11 +65,13 @@ async function execute(request: Request) {
     await stateRef.set({ cursor: 0, lastResult: outcome, sourceErrors: sourceErrors.slice(0, 12), updatedAt: new Date() }, { merge: true })
     return NextResponse.json({ outcome, sourceErrors: sourceErrors.slice(0, 12) })
   }
+  // Reserve time to persist outcomes before the 300-second Vercel limit.
+  const budgetMs = Math.max(10_000, 280_000 - (Date.now() - startedAt))
   const outcomes = await Promise.all(tasks.map(async (task) => {
     try {
       const run = await runPipeline(new Request("https://aerolearn.local/api/lessons/pipeline", {
         method: "POST", headers,
-        body: JSON.stringify({ action: task.action, classLevel: task.classLevel, subject: task.subject, topicTitle: task.topicTitle }),
+        body: JSON.stringify({ action: task.action, classLevel: task.classLevel, subject: task.subject, topicTitle: task.topicTitle, budgetMs }),
       }))
       const result = await run.json().catch(() => ({}))
       return {
@@ -85,8 +88,11 @@ async function execute(request: Request) {
       }
     }
   }))
+  const retryTask = tasks.find((_, index) => ["failed", "needs_revision"].includes(outcomes[index].status))
   await stateRef.set({
-    cursor: (tasks[tasks.length - 1].index + 1) % combinations.length,
+    // A failed or rejected topic is the next daily starting point. Published
+    // topics are skipped by the reader, so later subjects still make progress.
+    cursor: retryTask?.index ?? (tasks[tasks.length - 1].index + 1) % combinations.length,
     lastResult: outcomes[outcomes.length - 1], lastResults: outcomes,
     history: [...(Array.isArray(state.history) ? state.history : []), ...outcomes].slice(-30),
     sourceErrors: sourceErrors.slice(0, 12), updatedAt: new Date(),

@@ -14,7 +14,7 @@ type Draft = Topic & {
   classLevel: string
   subject: string
   content: string
-  status: "awaiting_ai_review" | "needs_revision" | "published"
+  status: "writing" | "awaiting_ai_review" | "needs_revision" | "published"
   review?: { approved: boolean; issues: string[] }
   publishedLessonId?: string
 }
@@ -103,25 +103,34 @@ export default function LessonGeneratorPage() {
     setError("")
     let published = 0
     let held = 0
+    let failed = 0
     try {
       for (const title of titles) {
         if (stop.current) break
-        let draft = drafts[title]
-        if (draft?.status === "published") continue
-        if (!draft || draft.status === "needs_revision") {
-          setStatus(`Writing ${title}…`)
-          const data = await pipeline("POST", { action: "write", classLevel, subject, topicTitle: title })
+        try {
+          let draft = drafts[title]
+          if (draft?.status === "published") continue
+          if (!draft || draft.status !== "awaiting_ai_review") {
+            setStatus(`Writing ${title}… retrying temporary AI errors up to five times`)
+            const data = await pipeline("POST", { action: "write", classLevel, subject, topicTitle: title })
+            draft = data.draft
+            setDrafts((previous) => ({ ...previous, [title]: draft }))
+          }
+          setStatus(`AI reviewing ${title}…`)
+          const data = await pipeline("POST", { action: "review", classLevel, subject, topicTitle: title })
           draft = data.draft
           setDrafts((previous) => ({ ...previous, [title]: draft }))
+          if (draft.status === "published") published++
+          else held++
+        } catch (cause) {
+          failed++
+          setError(`${title}: ${cause instanceof Error ? cause.message : "Generation failed."}`)
+          const saved = await pipeline("GET", { classLevel, subject }).catch(() => null)
+          const index = plan.topics.findIndex((topic) => topic.title === title)
+          if (saved?.drafts?.[index]) setDrafts((previous) => ({ ...previous, [title]: saved.drafts[index] }))
         }
-        setStatus(`AI reviewing ${title}…`)
-        const data = await pipeline("POST", { action: "review", classLevel, subject, topicTitle: title })
-        draft = data.draft
-        setDrafts((previous) => ({ ...previous, [title]: draft }))
-        if (draft.status === "published") published++
-        else held++
       }
-      setStatus(`${published} published after AI review · ${held} held for revision${stop.current ? " · stopped" : ""}.`)
+      setStatus(`${published} published after AI review · ${held} held for revision · ${failed} waiting to retry${stop.current ? " · stopped" : ""}.`)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Generation stopped.")
       setStatus(`${published} published · ${held} held. You can resume the remaining topics.`)
@@ -185,7 +194,7 @@ export default function LessonGeneratorPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-body-sm font-semibold text-foreground">{index + 1}. {topic.title}</p>
                       <p className="mt-1 text-caption text-muted">{topic.term} · {topic.scope}</p>
-                      <p className="mt-1 text-caption font-semibold text-muted">{draft?.status === "published" ? "Published after AI review" : draft?.status === "needs_revision" ? "Held for revision" : draft?.status === "awaiting_ai_review" ? "Awaiting AI review" : "Not written"}</p>
+                      <p className="mt-1 text-caption font-semibold text-muted">{draft?.status === "published" ? "Published after AI review" : draft?.status === "needs_revision" ? "Held for revision" : draft?.status === "awaiting_ai_review" ? "Awaiting AI review" : draft?.status === "writing" ? "Partly written — will resume" : "Not written"}</p>
                     </div>
                     {draft?.status === "published" && draft.publishedLessonId ? (
                       <Link href={`/admin/lesson-editor?lesson=${draft.publishedLessonId}`} className="btn-secondary btn-sm">Find a video</Link>
