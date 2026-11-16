@@ -22,19 +22,19 @@
  * decision about cost and quality, not a bug fix.
  */
 import { NextResponse } from "next/server"
-import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
+import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "@/lib/ai-provider"
 
 import { requireUser } from "@/lib/api-auth"
 import { FetchRefused, safeFetch } from "@/lib/safe-fetch"
 
-const apiKey = aetherKey
+const apiKey = aiKey
 
 /** A voice note that does not fit in this is not a voice note. */
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024
 
 export function GET() {
   return NextResponse.json({
-    audioTranscription: Boolean(aetherKey && process.env.AETHER_TRANSCRIPTION_MODEL?.trim()),
+    audioTranscription: Boolean(process.env.AETHER_API_KEY?.trim() && process.env.AETHER_TRANSCRIPTION_MODEL?.trim()),
   })
 }
 
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
     }
 
     const isImage = Boolean(mediaUrl) && mediaType !== "audio"
-    const model = isImage ? aetherVisionModel : aetherModel
+    const model = isImage ? aiVisionModel : aiModel
 
     const completion = await chatCompletion({
       messages: isImage

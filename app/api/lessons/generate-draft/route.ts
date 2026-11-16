@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { aetherKey, chatCompletion } from "@/lib/aether"
+import { aiKey, chatCompletion } from "@/lib/ai-provider"
 import { requireAdmin } from "@/lib/api-auth"
 import { researchCurriculum } from "@/lib/curriculum-research"
 
@@ -38,7 +38,7 @@ export async function DELETE(request: Request) {
 export async function POST(request: Request) {
   const gate = await requireAdmin(request)
   if (!gate.ok) return gate.response
-  if (!aetherKey) return NextResponse.json({ error: "AETHER_API_KEY is not configured." }, { status: 503 })
+  if (!aiKey) return NextResponse.json({ error: "COARENA_API_KEY is not configured." }, { status: 503 })
 
   const body = await request.json().catch(() => null)
   const id = lessonId(body?.lessonId)

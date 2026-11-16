@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { aetherKey, chatCompletion } from "@/lib/aether"
+import { aiKey, chatCompletion } from "@/lib/ai-provider"
 import { requireAdmin } from "@/lib/api-auth"
 import { parseAiJson } from "@/lib/ai-json"
 
@@ -9,7 +9,7 @@ type Issue = { index: number; reason: string }
 export async function POST(request: Request) {
   const gate = await requireAdmin(request)
   if (!gate.ok) return gate.response
-  if (!aetherKey) return NextResponse.json({ error: "Set AETHER_API_KEY to review ALOC questions." }, { status: 503 })
+  if (!aiKey) return NextResponse.json({ error: "Set COARENA_API_KEY to review ALOC questions." }, { status: 503 })
 
   const body = await request.json().catch(() => null)
   const questions = body?.questions

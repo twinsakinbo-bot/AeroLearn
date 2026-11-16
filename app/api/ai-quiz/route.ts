@@ -33,7 +33,7 @@
  * model returned.
  */
 import { NextResponse } from "next/server"
-import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
+import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "@/lib/ai-provider"
 
 import { parseAiRows } from "@/lib/ai-json"
 import { requireUser } from "@/lib/api-auth"
@@ -41,9 +41,9 @@ import { CLASS_LEVELS } from "@/lib/constants"
 import { correctLetterOf, optionsOf, questionText, type StoredQuestion } from "@/lib/questions"
 import { clientIp, rateLimit } from "@/lib/rate-limit"
 
-const apiKey = aetherKey
+const apiKey = aiKey
 
-const MODEL = aetherModel
+const MODEL = aiModel
 const MIN_QUESTIONS = 1
 const MAX_QUESTIONS = 20
 

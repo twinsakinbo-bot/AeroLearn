@@ -14,21 +14,21 @@
  * a long lesson had no room to answer in.
  */
 import { NextResponse } from "next/server"
-import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
+import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "@/lib/ai-provider"
 
 import { parseAiRows } from "@/lib/ai-json"
 import { requireUser } from "@/lib/api-auth"
 import { clientIp, rateLimit } from "@/lib/rate-limit"
 
 const MAX_CONTENT_CHARS = 15_000
-const MODEL = aetherModel
+const MODEL = aiModel
 const CARD_COUNT = 10
 const MAX_TOKENS = 4_000
 
 /** Where a wrapped array hides: JSON mode can only return an object. */
 const ROW_KEYS = ["flashcards", "cards", "terms", "items", "data"]
 
-const apiKey = aetherKey
+const apiKey = aiKey
 
 const SYSTEM =
   "You write revision flashcards for Nigerian secondary school students. You " +

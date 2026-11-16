@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
+import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "@/lib/ai-provider"
 
 import { getAdminAuth, getAdminDb } from "@/lib/db-admin"
 import { isProUser } from "@/lib/plan-access"
@@ -17,7 +17,7 @@ import { isProUser } from "@/lib/plan-access"
 const MAX_IMAGE_CHARS = 7_500_000
 const MAX_QUESTION_CHARS = 2_000
 
-const apiKey = aetherKey
+const apiKey = aiKey
 
 export async function POST(req: Request) {
   const authHeader = req.headers.get("authorization")
@@ -99,7 +99,7 @@ WAEC standard marking scheme, and reply in Markdown exactly in this shape:
           ],
         },
       ],
-      model: aetherVisionModel,
+      model: aiVisionModel,
       temperature: 0.5,
       max_tokens: 1024,
     })

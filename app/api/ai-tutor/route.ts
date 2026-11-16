@@ -8,12 +8,12 @@
  * up a bill either.
  */
 import { NextResponse } from 'next/server'
-import { aetherKey, aetherModel, aetherVisionModel, chatCompletion, transcribeAudio } from "@/lib/aether"
+import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "@/lib/ai-provider"
 
 import { requireUser } from '@/lib/api-auth'
 
 // Initialize Groq API
-const apiKey = aetherKey
+const apiKey = aiKey
 
 /** Trimmed to keep a caller from paying for someone else's essay. */
 const cap = (value: unknown, limit: number) => String(value ?? "").slice(0, limit)
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
     const completion = await chatCompletion({
       messages: [{ role: "user", content: prompt }],
-      model: aetherModel,
+      model: aiModel,
     });
 
     const aiResponse = completion.choices[0]?.message?.content || "";
