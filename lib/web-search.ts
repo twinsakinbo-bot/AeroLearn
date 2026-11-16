@@ -10,6 +10,25 @@ export function webSearchConfigured(): boolean {
   return true // Wikimedia's public search API needs no account or key.
 }
 
+/** Background reference lookup for the tutor when it cannot answer confidently. */
+export async function searchWikipedia(query: string): Promise<WebResult[]> {
+  const url = new URL("https://en.wikipedia.org/w/rest.php/v1/search/page")
+  url.searchParams.set("q", query.trim().slice(0, 180))
+  url.searchParams.set("limit", "5")
+  const response = await fetch(url, {
+    headers: { Accept: "application/json", "User-Agent": "AeroLearn/1.0 (support@aerolearn.name.ng)" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!response.ok) throw new Error(`Wikipedia search failed (${response.status}).`)
+  const data = await response.json() as { pages?: Array<{ key?: string; title?: string; excerpt?: string; description?: string }> }
+  return (data.pages || []).filter((item) => item.key).map((item) => ({
+    title: String(item.title || "").slice(0, 160),
+    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.key || "")}`,
+    description: String(item.excerpt || item.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500),
+  })).slice(0, 5)
+}
+
 function normalizeResults(items: Array<{ title?: string; url?: string; description?: string; content?: string }>): WebResult[] {
   return items.flatMap((item) => {
     try {
@@ -49,21 +68,7 @@ export async function searchWeb(query: string): Promise<WebResult[]> {
 
   const key = process.env.BRAVE_SEARCH_API_KEY?.trim()
   if (!key) {
-    const url = new URL("https://en.wikipedia.org/w/rest.php/v1/search/page")
-    url.searchParams.set("q", query.trim().slice(0, 180))
-    url.searchParams.set("limit", "5")
-    const response = await fetch(url, {
-      headers: { Accept: "application/json", "User-Agent": "AeroLearn/1.0 (support@aerolearn.name.ng)" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
-    })
-    if (!response.ok) throw new Error(`Wikipedia search failed (${response.status}).`)
-    const data = await response.json() as { pages?: Array<{ key?: string; title?: string; excerpt?: string; description?: string }> }
-    return (data.pages || []).filter((item) => item.key).map((item) => ({
-      title: String(item.title || "").slice(0, 160),
-      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.key || "")}`,
-      description: String(item.excerpt || item.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500),
-    })).slice(0, 5)
+    return searchWikipedia(query)
   }
   const url = new URL("https://api.search.brave.com/res/v1/web/search")
   url.searchParams.set("q", query.trim().slice(0, 180))
