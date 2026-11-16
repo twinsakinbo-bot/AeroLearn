@@ -32,9 +32,9 @@ export async function chatCompletion(options: {
       signal: AbortSignal.timeout(budgetMs),
     })
     if (!response.ok) throw new Error(`${useCoarena ? "Coarena" : "Aether"} ${model} request failed (${response.status})`)
-    const result = await response.json() as { choices?: Array<{ message?: { content?: string | null } }> }
+    const result = await response.json() as { choices?: Array<{ message?: { content?: string | null }; finish_reason?: string | null }> }
     if (!result.choices?.[0]?.message?.content) throw new Error(`${useCoarena ? "Coarena" : "Aether"} ${model} returned no answer`)
-    return result as { choices: Array<{ message: { content: string | null } }> }
+    return result as { choices: Array<{ message: { content: string | null }; finish_reason?: string | null }> }
   }
 
   const primaryModel = options.model || aiModel

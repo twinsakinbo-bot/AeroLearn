@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { auth, onAuthStateChanged } from "@/lib/auth"
-import { collection, db, doc, getDoc, getDocs, query, updateDoc, where } from "@/lib/db"
+import { collection, db, doc, getDoc, getDocs, query, where } from "@/lib/db"
 import confetti from "canvas-confetti"
 import {
   Award,
@@ -114,40 +114,6 @@ export default function DashboardPage() {
         const data = snap.data()
         setProfile(data)
 
-        /* Daily login streak. The server owns the arithmetic so a student
-           cannot mint coins by reloading. */
-        const today = new Date().toISOString().split("T")[0]
-        if (data.lastLoginDate !== today) {
-          try {
-            const idToken = await user.getIdToken()
-            const res = await fetch("/api/gamification/login", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${idToken}` },
-            })
-            const login = await res.json()
-            if (login.updated) {
-              setProfile((prev: any) => ({
-                ...prev,
-                streak: login.streak,
-                coins: login.coins,
-                lastLoginDate: login.lastLoginDate,
-              }))
-              setTimeout(
-                () =>
-                  celebrate({
-                    particleCount: 120,
-                    spread: 90,
-                    origin: { y: 0.4 },
-                    colors: CONFETTI_COLORS,
-                  }),
-                400,
-              )
-            }
-          } catch (error) {
-            console.error("Login streak update failed:", error)
-          }
-        }
-
         const classLevel: string = data.classLevel || "SS3"
         const subjects: string[] = Array.isArray(data.subjects) ? data.subjects : []
         const completed: string[] = data.completedLessons || []
@@ -201,18 +167,9 @@ export default function DashboardPage() {
     return () => unsubscribe()
   }, [router])
 
-  const startLearning = async () => {
+  const startLearning = () => {
     if (!auth.currentUser) return
     setStarting(true)
-    try {
-      await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        lastActiveDate: new Date().toISOString().split("T")[0],
-      })
-    } catch (error) {
-      /* Not worth blocking navigation over — the date is only used for streaks,
-         and the server recomputes those on the next login ping. */
-      console.error("Failed to stamp the active date:", error)
-    }
     router.push(nextLesson ? `/app/learn/${nextLesson.id}` : "/app/learn")
   }
 

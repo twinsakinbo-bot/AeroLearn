@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAdminAuth, getAdminDb } from "@/lib/db-admin"
+import { lagosDayKey, nextLoginStreak } from "@/lib/streak"
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,28 +25,18 @@ export async function POST(req: NextRequest) {
       }
       
       const data = userDoc.data()!
-      const today = new Date().toISOString().split("T")[0]
-      
-      if (data.lastLoginDate === today) {
-        // Already logged in today
-        return { updated: false }
-      }
-      
-      const newStreak = (data.streak || 0) + 1
-      const newCoins = (data.coins || 0) + 10
-      
+      const today = lagosDayKey()
+      const result = nextLoginStreak(data, today)
+      if (!result.updated) return { ...result, lastLoginDate: today }
       transaction.update(userRef, {
         lastLoginDate: today,
-        streak: newStreak,
-        coins: newCoins
+        lastActiveDate: today,
+        streak: result.streak,
+        longestStreak: result.longestStreak,
+        coins: result.coins,
+        inventory: result.inventory,
       })
-      
-      return {
-        updated: true,
-        streak: newStreak,
-        coins: newCoins,
-        lastLoginDate: today
-      }
+      return { ...result, lastLoginDate: today }
     })
 
     return NextResponse.json(result)

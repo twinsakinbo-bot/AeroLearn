@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { auth, onAuthStateChanged, signOut, type User } from "@/lib/auth"
-import { db, doc, type DocumentData, getDoc, setDoc, updateDoc } from "@/lib/db"
+import { db, doc, type DocumentData, getDoc, setDoc } from "@/lib/db"
 import {
   ChevronDown,
   Crown,
@@ -199,53 +199,6 @@ function NavSections({
   )
 }
 
-/** Today and yesterday as YYYY-MM-DD — the form `lastActiveDate` is stored in. */
-function dayKeys() {
-  const now = new Date()
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  return {
-    today: now.toISOString().split("T")[0],
-    yesterday: yesterday.toISOString().split("T")[0],
-  }
-}
-
-/**
- * Works out this visit's streak. A visit the day after the last one extends it
- * and a longer gap resets it — unless the student is holding a streak freeze
- * bought from the store, which is spent to cover the gap. Returns null when
- * nothing changed, so a second visit on the same day costs no write.
- */
-function rollStreak(data: DocumentData) {
-  const { today, yesterday } = dayKeys()
-  let streak: number = data.streak || 0
-  let longestStreak: number = data.longestStreak || 0
-  let inventory: string[] = data.inventory || []
-  let changed = false
-
-  if (data.lastActiveDate !== today) {
-    changed = true
-    if (data.lastActiveDate === yesterday) {
-      streak += 1
-    } else if (data.lastActiveDate && inventory.includes("streak_freeze")) {
-      inventory = inventory.filter((id) => id !== "streak_freeze")
-      streak += 1
-    } else {
-      streak = 1
-    }
-    if (streak > longestStreak) longestStreak = streak
-  }
-
-  // A profile written before streaks existed starts today, on one.
-  if (data.streak === undefined) {
-    changed = true
-    streak = 1
-    longestStreak = 1
-  }
-
-  return changed ? { streak, longestStreak, lastActiveDate: today, inventory } : null
-}
-
 /** Feeds the account picker on the sign-in screen. Best effort only. */
 function rememberAccount(email: string | null, displayName: string, photoURL: string) {
   try {
@@ -270,9 +223,9 @@ function blankProfile(email: string | null, displayName: string) {
     subscription: "free",
     onboardingCompleted: false,
     xp: 0,
-    streak: 1,
-    longestStreak: 1,
-    lastActiveDate: dayKeys().today,
+    streak: 0,
+    longestStreak: 0,
+    lastActiveDate: null,
     completedLessons: [],
     completedTopics: [],
     completedQuizzes: [],
@@ -294,6 +247,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [streakMoment, setStreakMoment] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (streakMoment === null) return
+    const timer = window.setTimeout(() => setStreakMoment(null), 6500)
+    return () => window.clearTimeout(timer)
+  }, [streakMoment])
 
   useEffect(() => {
     if (localStorage.getItem("sidebar-collapsed") === "true") setCollapsed(true)
@@ -319,6 +279,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const ref = doc(db, "users", firebaseUser.uid)
         const snap = await getDoc(ref)
 
+        let data: DocumentData
         if (!snap.exists()) {
           // Created straight in the Firebase console, or a sign-up that failed
           // half way. Give the account something to read from.
@@ -327,17 +288,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Student",
           )
           await setDoc(ref, profile)
-          setUserProfile(profile)
-          return
+          data = profile
+        } else {
+          data = snap.data()
         }
-
-        const data = snap.data()
-        const rolled = rollStreak(data)
-        if (rolled) {
-          // Fire and forget: a failed streak write must not hold up the page.
-          updateDoc(ref, rolled).catch(console.error)
+        setUserProfile(data)
+        try {
+          const token = await firebaseUser.getIdToken()
+          const response = await fetch("/api/gamification/login", { method: "POST", headers: { Authorization: `Bearer ${token}` } })
+          if (response.ok) {
+            const login = await response.json()
+            setUserProfile((previous) => previous ? { ...previous, streak: login.streak, longestStreak: login.longestStreak, coins: login.coins, lastActiveDate: login.lastActiveDate, lastLoginDate: login.lastLoginDate, inventory: login.inventory } : previous)
+            if (login.updated && login.streak > 0) {
+              setStreakMoment(login.streak)
+              if (login.streak % 7 === 0 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                void import("canvas-confetti").then(({ default: confetti }) => confetti({ particleCount: 90, spread: 70, origin: { y: 0.75 } }))
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Could not update study streak:", error)
         }
-        setUserProfile(rolled ? { ...data, ...rolled } : data)
 
         rememberAccount(
           firebaseUser.email,
@@ -688,6 +659,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       <BottomNav onMoreClick={() => setDrawerOpen(true)} moreBadgeCount={unread} />
+      {streakMoment !== null && <div role="status" className="fixed bottom-24 left-1/2 z-50 flex w-[min(92vw,26rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-streak/30 bg-surface-raised p-4 shadow-xl md:bottom-6">
+        <Flame size={24} className="shrink-0 text-streak" aria-hidden="true" />
+        <div className="min-w-0 flex-1"><p className="text-body-sm font-bold text-foreground">{streakMoment % 7 === 0 ? `${streakMoment}-day milestone!` : `Day ${streakMoment} of your streak!`}</p><p className="text-caption text-muted">+10 coins for showing up. Keep learning a little each day.</p></div>
+        <button type="button" onClick={() => setStreakMoment(null)} aria-label="Dismiss streak message" className="text-muted hover:text-foreground"><X size={17} /></button>
+      </div>}
     </div>
   )
 }

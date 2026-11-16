@@ -13,7 +13,7 @@ import { Crown, Flame, ShieldCheck, Star, Trophy, type LucideIcon } from "lucide
  * nothing is worse than having a small store, so the catalogue now lists only
  * what the app genuinely honours:
  *
- *   - `streak_freeze`  spent by the app shell to cover a missed day
+ *   - `streak_freeze`  spent by the login endpoint to cover one missed day
  *   - `gold_frame`     drawn around the avatar on the community leaderboard
  *   - `title_*`        shown under the name on the profile and community pages
  *
@@ -68,7 +68,7 @@ export const STORE_ITEMS: StoreItem[] = [
     id: "streak_freeze",
     name: "Streak freeze",
     description:
-      "Covers one missed day. The next time you sign in after a gap, this is spent for you and your streak carries on.",
+      "Covers one missed day. Sign in the day after that missed day to keep your streak; the freeze is then used.",
     price: 200,
     category: "Power-ups",
     icon: ShieldCheck,

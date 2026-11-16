@@ -6,6 +6,7 @@ import { getAdminDb } from "@/lib/db-admin"
 import { emailLayout, emailParagraph, escapeHtml, MAIL_FROM } from "@/lib/email-template"
 import { isPaidPlan, planName } from "@/lib/plans"
 import { siteUrl } from "@/lib/site"
+import { dormantStreak, lagosDayKey, streakWarningDue } from "@/lib/streak"
 
 export const maxDuration = 300
 
@@ -31,7 +32,10 @@ export async function GET(request: Request) {
   let expiring = 0
   let ended = 0
   let study = 0
+  let streakWarnings = 0
+  let streaksReset = 0
   let failures = 0
+  const today = lagosDayKey()
 
   for (const entry of users.docs) {
     const user = entry.data()
@@ -42,6 +46,11 @@ export async function GET(request: Request) {
     const expiryKey = expiry?.toISOString()
 
     try {
+      const currentStreak = dormantStreak(user, today)
+      if (currentStreak === 0 && Number(user.streak || 0) > 0) {
+        await ref.update({ streak: 0 })
+        streaksReset++
+      }
       if (user.trustPassRequestId) {
         if (expiry && expiry.getTime() <= now && user.subscription === "pro") {
           await ref.update({ subscription: "free", proExpiresAt: null })
@@ -85,6 +94,20 @@ export async function GET(request: Request) {
       }
 
       if (user.studyEmailsEnabled === false) continue
+      if (streakWarningDue(user, today) && user.lastStreakWarningFor !== today) {
+        const result = await resend.emails.send({
+          from: MAIL_FROM.hello, to: user.email,
+          subject: `Keep your ${Number(user.streak)}-day AeroLearn streak 🔥`,
+          html: emailLayout({ preheader: "Your study streak needs a visit today.", heading: `Your streak is waiting, ${name}`,
+            body: emailParagraph(`You have a ${Number(user.streak)}-day study streak. Open AeroLearn today before midnight in Nigeria to keep it going. Five practice questions are enough to get started.`),
+            cta: { label: "Keep my streak", href: "/app/practice" },
+            footnote: `You can turn off study reminders in Settings. ${preferences}` }),
+        })
+        if (result.error) throw result.error
+        await ref.update({ lastStreakWarningFor: today, lastEmailActivityDate: today })
+        streakWarnings++
+        continue
+      }
       const lastActive = dateOf(user.lastActiveDate) || dateOf(user.createdAt)
       const lastReminder = dateOf(user.lastStudyReminderAt)
       if (!lastActive || now - lastActive.getTime() < 2 * dayMs ||
@@ -105,5 +128,5 @@ export async function GET(request: Request) {
       console.error("Could not process subscription or study reminder:", entry.id, error)
     }
   }
-  return NextResponse.json({ expiring, ended, study, failures })
+  return NextResponse.json({ expiring, ended, study, streakWarnings, streaksReset, failures })
 }
