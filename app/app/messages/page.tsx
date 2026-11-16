@@ -312,6 +312,7 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [webSearchAvailable, setWebSearchAvailable] = useState(false)
+  const [webSearchProvider, setWebSearchProvider] = useState("")
   const [quizModeEnabled, setQuizModeEnabled] = useState(false)
   const [userCache, setUserCache] = useState<Record<string, Person>>({})
 
@@ -485,6 +486,7 @@ export default function MessagesPage() {
         if (live) {
           setAiAudioAvailable(data.audioTranscription === true)
           setWebSearchAvailable(data.webSearch === true)
+          setWebSearchProvider(typeof data.webSearchProvider === "string" ? data.webSearchProvider : "")
         }
       })
       .catch(() => {})
@@ -1518,7 +1520,7 @@ export default function MessagesPage() {
                     {webSearchAvailable && (
                       <button type="button" aria-pressed={webSearchEnabled} onClick={() => setWebSearchEnabled((enabled) => !enabled)}
                         className={cn("rounded-full border px-3 py-1.5 text-caption font-semibold", webSearchEnabled ? "border-accent bg-accent/10 text-accent" : "border-hairline text-muted")}>
-                        {webSearchEnabled ? "✓ " : ""}Search web
+                        {webSearchEnabled ? "✓ " : ""}{webSearchProvider === "wikipedia" ? "Search Wikipedia" : "Search web"}
                       </button>
                     )}
                     <button type="button" aria-pressed={quizModeEnabled} onClick={() => setQuizModeEnabled((enabled) => !enabled)}

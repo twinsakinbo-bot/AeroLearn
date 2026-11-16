@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/api-auth"
 import { getAdminDb } from "@/lib/db-admin"
 import cronConfig from "@/vercel.json"
+import { webSearchConfigured, webSearchProvider } from "@/lib/web-search"
 
 export async function GET(request: Request) {
   const gate = await requireAdmin(request)
@@ -38,7 +39,8 @@ export async function GET(request: Request) {
       lessons: Boolean(process.env.CRON_SECRET && (process.env.COARENA_API_KEY || process.env.AETHER_API_KEY)),
       aloc: Boolean(process.env.CRON_SECRET && process.env.ALOC_ACCESS_TOKEN && (process.env.COARENA_API_KEY || process.env.AETHER_API_KEY)),
       email: Boolean(process.env.CRON_SECRET && process.env.RESEND_API_KEY),
-      webSearch: Boolean(process.env.BRAVE_SEARCH_API_KEY),
+      webSearch: webSearchConfigured(),
+      webSearchProvider: webSearchProvider(),
     },
     schedules: cronConfig.crons.filter((item) => item.path.startsWith("/api/automation/")),
   })

@@ -26,7 +26,7 @@ type Status = {
   alocJob: { lastResult: Outcome | null; history: Outcome[] }
   email: { lastSentDay: string | null }
   counts: { published: number; awaitingReview: number; needsRevision: number; pendingReceipts: number }
-  configured: { lessons: boolean; aloc: boolean; email: boolean; webSearch: boolean }
+  configured: { lessons: boolean; aloc: boolean; email: boolean; webSearch: boolean; webSearchProvider: string }
   schedules: Array<{ path: string; schedule: string }>
 }
 
@@ -140,7 +140,7 @@ export default function AutomationPage() {
           </div>
         </section>
         {status.lessonJob.sourceErrors.length > 0 && <section className="card p-5 sm:p-6"><h2 className="text-h4 text-foreground">NERDC sources needing attention</h2><ul className="mt-3 list-disc space-y-1 pl-5 text-body-sm text-muted">{status.lessonJob.sourceErrors.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
-        <p className="text-body-sm text-muted">Last admin status email: {status.email.lastSentDay || "not sent yet"}. Web search: {status.configured.webSearch ? "ready" : "add a Brave Search API key"}.</p>
+        <p className="text-body-sm text-muted">Last admin status email: {status.email.lastSentDay || "not sent yet"}. Tutor reference search: {status.configured.webSearchProvider === "wikipedia" ? "Wikipedia (free, no key)" : status.configured.webSearchProvider}.</p>
       </>}
     </div>
   )
