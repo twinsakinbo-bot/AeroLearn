@@ -10,15 +10,15 @@
     },
     {
       "path": "/api/automation/lessons",
-      "schedule": "0 1 * * *"
+      "schedule": "0 23 * * *"
     },
     {
       "path": "/api/automation/aloc",
-      "schedule": "0 2 * * *"
+      "schedule": "0 23 * * *"
     },
     {
       "path": "/api/automation/status-email",
-      "schedule": "15 9 * * *"
+      "schedule": "0 23 * * *"
     }
   ]
 }

@@ -6,9 +6,9 @@ The admin can monitor recent results and run a job immediately at `/admin/automa
 
 | Time (UTC) | Route | Work |
 | --- | --- | --- |
-| 01:00 daily | `/api/automation/lessons` | Up to three NERDC sourced lesson steps: plan, write, or independent AI review. Approved reviews publish lessons; rejected drafts stay for revision. |
-| 02:00 daily | `/api/automation/aloc` | Fetch one ALOC exam/subject/year batch, remove questions flagged by AI review, and import only new questions. |
-| 09:15 daily | `/api/automation/status-email` | Email the admin the receipt queue and latest content job results. |
+| 23:00 UTC daily (00:00 Africa/Lagos) | `/api/automation/lessons` | Up to three NERDC sourced lesson steps: plan, write, or independent AI review. Approved reviews publish lessons; rejected drafts stay for revision. |
+| 23:00 UTC daily (00:00 Africa/Lagos) | `/api/automation/aloc` | Fetch one ALOC exam/subject/year batch, remove questions flagged by AI review, and import only new questions. |
+| 23:00 UTC daily (00:00 Africa/Lagos) | `/api/automation/status-email` | Email the admin the receipt queue and latest completed content job results. Because all three start together, the email may describe the previous runs. |
 
 Submitting a transfer receipt also requests an immediate admin email. **Only an admin checks payment and approves a plan.** A failed email does not discard the receipt; the daily digest still lists it.
 
