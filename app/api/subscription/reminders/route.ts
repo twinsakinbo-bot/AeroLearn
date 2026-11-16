@@ -4,8 +4,8 @@ import { Resend } from "resend"
 import { requireSchedulerOrAdmin } from "@/lib/api-auth"
 import { getAdminDb } from "@/lib/db-admin"
 import { emailLayout, emailParagraph, escapeHtml, MAIL_FROM } from "@/lib/email-template"
+import { studyEmailFootnote, unsubscribeHeaders, unsubscribeUrl } from "@/lib/email-unsubscribe"
 import { isPaidPlan, planName } from "@/lib/plans"
-import { siteUrl } from "@/lib/site"
 import { dormantStreak, lagosDayKey, streakWarningDue } from "@/lib/streak"
 
 export const maxDuration = 300
@@ -19,7 +19,6 @@ function dateOf(value: unknown): Date | null {
 }
 
 const dayMs = 86_400_000
-const preferences = `<a href="${siteUrl("/app/settings")}" style="color:#1E3A8A;">Change study email preferences</a>.`
 
 export async function GET(request: Request) {
   const gate = await requireSchedulerOrAdmin(request)
@@ -94,6 +93,7 @@ export async function GET(request: Request) {
       }
 
       if (user.studyEmailsEnabled === false) continue
+      const unsubscribe = unsubscribeUrl(entry.id, user.email)
       if (streakWarningDue(user, today) && user.lastStreakWarningFor !== today) {
         const result = await resend.emails.send({
           from: MAIL_FROM.hello, to: user.email,
@@ -101,7 +101,8 @@ export async function GET(request: Request) {
           html: emailLayout({ preheader: "Your study streak needs a visit today.", heading: `Your streak is waiting, ${name}`,
             body: emailParagraph(`You have a ${Number(user.streak)}-day study streak. Open AeroLearn today before midnight in Nigeria to keep it going. Five practice questions are enough to get started.`),
             cta: { label: "Keep my streak", href: "/app/practice" },
-            footnote: `You can turn off study reminders in Settings. ${preferences}` }),
+            footnote: studyEmailFootnote(unsubscribe) }),
+          headers: unsubscribeHeaders(unsubscribe),
         })
         if (result.error) throw result.error
         await ref.update({ lastStreakWarningFor: today, lastEmailActivityDate: today })
@@ -118,7 +119,8 @@ export async function GET(request: Request) {
         html: emailLayout({ preheader: "Five questions today can get you moving again.", heading: `Ready for five questions, ${name}?`,
           body: emailParagraph("Your next study session can be small: pick one subject, answer five questions and see what you remember. Your progress and XP are ready when you return."),
           cta: { label: "Start a quick practice", href: "/app/practice" },
-          footnote: `You receive study reminders because you have an AeroLearn account. ${preferences}` }),
+          footnote: studyEmailFootnote(unsubscribe) }),
+        headers: unsubscribeHeaders(unsubscribe),
       })
       if (result.error) throw result.error
       await ref.update({ lastStudyReminderAt: new Date(), lastEmailActivityDate: new Date().toISOString().slice(0, 10) })

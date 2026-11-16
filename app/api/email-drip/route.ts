@@ -10,7 +10,9 @@ import {
   emailParagraph,
   escapeHtml,
 } from "@/lib/email-template"
-import { siteUrl } from "@/lib/site"
+import { studyEmailFootnote, unsubscribeHeaders, unsubscribeUrl } from "@/lib/email-unsubscribe"
+import { isProUser } from "@/lib/plan-access"
+import { planById } from "@/lib/plans"
 import { GET as runReminders } from "@/app/api/subscription/reminders/route"
 
 export const maxDuration = 300
@@ -29,13 +31,10 @@ const DEFAULT_DRIP_SCHEDULE = [
   { day: 30, subject: "We Miss You! Come Back to AeroLearn 💙", templateKey: "day30_reengagement" },
 ]
 
-/* Sent to people who have not asked for each one individually, so every template
-   says why it arrived. There is no unsubscribe link yet — see the note in
-   `runDripCampaign`. */
-const WHY_THIS_EMAIL = `You are receiving this because you created an AeroLearn account. <a href="${siteUrl("/app/settings")}">Turn off study and learning-tip emails in Settings</a>.`
+const monthly = planById("monthly")!
 
-const EMAIL_TEMPLATES: Record<string, (name: string) => string> = {
-  day3_quiz: (name) =>
+const EMAIL_TEMPLATES: Record<string, (name: string, unsubscribe: string) => string> = {
+  day3_quiz: (name, unsubscribe) =>
     emailLayout({
       preheader: "A ten-question quiz on any topic, generated in seconds.",
       heading: `Ready for your first quiz, ${escapeHtml(name)}? 👋`,
@@ -47,10 +46,10 @@ const EMAIL_TEMPLATES: Record<string, (name: string) => string> = {
             "worked explanation behind every answer you get wrong.",
         ),
       cta: { label: "Take your first quiz", href: "/app/practice" },
-      footnote: WHY_THIS_EMAIL,
+      footnote: studyEmailFootnote(unsubscribe),
     }),
 
-  day7_streak: (name) =>
+  day7_streak: (name, unsubscribe) =>
     emailLayout({
       preheader: "Fifteen minutes today keeps the streak alive.",
       heading: `Your streak is waiting, ${escapeHtml(name)} 🔥`,
@@ -61,12 +60,12 @@ const EMAIL_TEMPLATES: Record<string, (name: string) => string> = {
             "in the store. Fifteen minutes is enough to keep the run going.",
         ),
       cta: { label: "Keep the streak", href: "/app" },
-      footnote: WHY_THIS_EMAIL,
+      footnote: studyEmailFootnote(unsubscribe),
     }),
 
-  day14_pro: (name) =>
+  day14_pro: (name, unsubscribe) =>
     emailLayout({
-      preheader: "Every subject, unlimited practice and essay grading — ₦2,500 a month.",
+      preheader: `Every subject, unlimited practice and essay grading — ${monthly.price} a month.`,
       heading: `Two weeks in, ${escapeHtml(name)} — ready for Pro? 🚀`,
       body:
         emailParagraph("Two weeks of studying is not a whim. Here is what the free plan is holding back:") +
@@ -77,12 +76,12 @@ const EMAIL_TEMPLATES: Record<string, (name: string) => string> = {
           "📄 <strong>PDF question papers</strong> to work through offline",
           "🏆 <strong>Timed mock exams and weekly challenges</strong> as papers land in the library",
         ]) +
-        emailParagraph("₦2,500 a month. Less than one textbook, and you can stop any time."),
-      cta: { label: "Upgrade to Pro — ₦2,500/mo", href: "/app/upgrade", tone: "accent" },
-      footnote: WHY_THIS_EMAIL,
+        emailParagraph(`${monthly.price} for ${monthly.cadence} of access. Plans do not renew automatically.`),
+      cta: { label: `See Pro plans`, href: "/app/upgrade", tone: "accent" },
+      footnote: studyEmailFootnote(unsubscribe),
     }),
 
-  day30_reengagement: (name) =>
+  day30_reengagement: (name, unsubscribe) =>
     emailLayout({
       preheader: "Your subjects are where you left them.",
       heading: `We miss you, ${escapeHtml(name)} 💙`,
@@ -93,7 +92,7 @@ const EMAIL_TEMPLATES: Record<string, (name: string) => string> = {
             "you are back in it.",
         ),
       cta: { label: "Pick up where you left off", href: "/app" },
-      footnote: WHY_THIS_EMAIL,
+      footnote: studyEmailFootnote(unsubscribe),
     }),
 }
 
@@ -108,12 +107,6 @@ async function runDripCampaign(req: NextRequest) {
      anonymous POST mailed every user on file. */
   const gate = await requireSchedulerOrAdmin(req)
   if (!gate.ok) return gate.response
-
-  /* TODO: these four are marketing mail, and there is no way to opt out of them.
-     Every template says why it arrived, which is the honest half; the missing half
-     is a one-click unsubscribe and a `List-Unsubscribe` header. Gmail weighs both
-     when deciding whether a sender lands in the inbox, so this costs delivery of
-     the transactional mail too. Needs a token route and a flag on `users`. */
 
   /* `new Resend(undefined)` throws, and this used to run at module scope, so a
      build without RESEND_API_KEY failed on importing this route. */
@@ -153,16 +146,22 @@ async function runDripCampaign(req: NextRequest) {
       // Find the next drip email to send
       for (const drip of dripSchedule) {
         if (daysSinceSignup >= drip.day && lastDripDay < drip.day) {
+          if (drip.templateKey === "day14_pro" && isProUser(userData)) {
+            await adminDb.collection("users").doc(userDoc.id).update({ lastDripEmailDay: drip.day })
+            continue
+          }
           // Send this email
           try {
             const template = EMAIL_TEMPLATES[drip.templateKey]
             if (!template) continue
+            const unsubscribe = unsubscribeUrl(userDoc.id, userData.email)
 
             const sent = await resend.emails.send({
               from: MAIL_FROM.hello,
               to: userData.email,
               subject: drip.subject,
-              html: template(userData.displayName || "Student"),
+              html: template(userData.displayName || "Student", unsubscribe),
+              headers: unsubscribeHeaders(unsubscribe),
             })
             if (sent.error) throw sent.error
 
