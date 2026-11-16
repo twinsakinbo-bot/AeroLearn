@@ -15,6 +15,7 @@ import {
   Sparkles,
   HelpCircle,
   LayoutDashboard,
+  Activity,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -73,7 +74,10 @@ type NavGroup = { title: string; items: NavItem[] }
 const NAV: NavGroup[] = [
   {
     title: "Overview",
-    items: [{ label: "Dashboard", href: "/admin", icon: LayoutDashboard }],
+    items: [
+      { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+      { label: "Automation", href: "/admin/automation", icon: Activity },
+    ],
   },
   {
     title: "Content",

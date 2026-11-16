@@ -69,7 +69,11 @@ async function execute(request: Request) {
   }
 
   // Advance even on failure so one unavailable ALOC year cannot block the queue.
-  await stateRef.set({ cursor: (index + 1) % total, lastResult: outcome, updatedAt: new Date() }, { merge: true })
+  await stateRef.set({
+    cursor: (index + 1) % total, lastResult: outcome,
+    history: [...(Array.isArray(state.history) ? state.history : []), outcome].slice(-30),
+    updatedAt: new Date(),
+  }, { merge: true })
   return NextResponse.json({ outcome }, { status: outcome.status === "done" ? 200 : 502 })
 }
 

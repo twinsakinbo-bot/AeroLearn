@@ -88,6 +88,7 @@ async function execute(request: Request) {
   await stateRef.set({
     cursor: (tasks[tasks.length - 1].index + 1) % combinations.length,
     lastResult: outcomes[outcomes.length - 1], lastResults: outcomes,
+    history: [...(Array.isArray(state.history) ? state.history : []), ...outcomes].slice(-30),
     sourceErrors: sourceErrors.slice(0, 12), updatedAt: new Date(),
   }, { merge: true })
   return NextResponse.json({ outcomes, sourceErrors: sourceErrors.slice(0, 12) })
