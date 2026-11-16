@@ -111,6 +111,23 @@ export async function GET(request: Request) {
     )
   } catch (error) {
     if (error instanceof FetchRefused) {
+      // Google Docs and other sites can reject server-side preview requests even
+      // when the link opens normally in a browser. Keep the link usable without
+      // claiming that we read a private document.
+      if (error.status === 502 || error.status === 504) {
+        const parsed = new URL(url)
+        return NextResponse.json(
+          {
+            title: parsed.hostname === "docs.google.com" && /^\/document\/d\/[^/]+/.test(parsed.pathname)
+              ? "Google Docs document"
+              : parsed.hostname,
+            description: null,
+            image: null,
+            url: parsed.toString(),
+          },
+          { headers: { "Cache-Control": "public, max-age=3600" } },
+        )
+      }
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
     console.error("Link preview error:", error)

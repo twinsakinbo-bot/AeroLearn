@@ -78,8 +78,8 @@ import { cn } from "@/lib/utils"
  * 6. **`deleteConversation` deleted the document for every participant** and orphaned
  *    the `messages` subcollection. Leaving now removes only this student's membership.
  *
- * Left alone but worth flagging: `/api/link-preview` has no auth (SSRF), the
- * friends-only rule is enforced only in this file so Firestore rules must repeat it,
+ * Left alone but worth flagging: the friends-only rule is enforced only in this
+ * file so database rules must repeat it,
  * `handleSearch` reads every user at your school and filters in memory, and
  * `Message.reactions` is written by nothing — the "Reactions" emoji picker appends to
  * your draft text instead.
@@ -966,16 +966,21 @@ export default function MessagesPage() {
     )
     if (!confirmed) return
     try {
-      await updateDoc(doc(db, "conversations", activeConv.id), {
-        participants: arrayRemove(uid),
-        unreadBy: arrayRemove(uid),
-        typing: arrayRemove(uid),
-        ...(activeConv.type === "group" ? { admins: arrayRemove(uid) } : {}),
+      const token = await auth.currentUser?.getIdToken()
+      if (!token) throw new Error("Session expired")
+      const response = await fetch("/api/conversations/leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ conversationId: activeConv.id }),
       })
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.error ?? "Could not leave the chat")
+      }
       closeConversation()
     } catch (error) {
-      console.error("Failed to delete the chat:", error)
-      setBanner({ tone: "error", text: "The chat was not deleted. Try again." })
+      console.error("Failed to leave the chat:", error)
+      setBanner({ tone: "error", text: error instanceof Error ? error.message : "Could not leave the chat. Try again." })
     }
   }
 
