@@ -92,7 +92,18 @@ async function curriculumEntries(classLevel: string): Promise<Array<{ label: str
   // The official NERDC page links to LMIS. Refuse a portal URL it does not endorse.
   if (!indexHtml.includes(`${PORTAL}/${level}`)) return []
 
-  const classHtml = await readText(new URL(`${PORTAL}/${level}/`))
+  // Request the exact URL published by NERDC. The portal redirects a trailing
+  // slash to this URL, and a rejected redirect used to surface as "fetch failed".
+  const classUrl = new URL(`${PORTAL}/${level}`)
+  let classHtml: string
+  try {
+    classHtml = await readText(classUrl)
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("(404)")) {
+      throw new Error(`NERDC's official ${classLevel} curriculum link returns 404: ${classUrl}`)
+    }
+    throw error
+  }
   const groupPages = senior
     ? links(classHtml).map(({ url }) => url).filter((url) => /^\/s[123]_(core|science|humanities|business)$/.test(url.pathname))
     : []

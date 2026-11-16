@@ -139,7 +139,7 @@ export default function AutomationPage() {
             {!status.lessonJob.history.length && !status.alocJob.history.length && <p className="text-body-sm text-muted">No scheduled run has finished yet. Use Run now or wait for the next daily run.</p>}
           </div>
         </section>
-        {status.lessonJob.sourceErrors.length > 0 && <section className="card p-5 sm:p-6"><h2 className="text-h4 text-foreground">NERDC sources needing attention</h2><ul className="mt-3 list-disc space-y-1 pl-5 text-body-sm text-muted">{status.lessonJob.sourceErrors.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
+        {status.lessonJob.sourceErrors.length > 0 && <section className="card p-5 sm:p-6"><h2 className="text-h4 text-foreground">NERDC sources needing attention</h2><p className="mt-2 text-body-sm text-muted">The lesson job checks these sources again on its next run. It skips a class when its official curriculum is unavailable.</p><ul className="mt-3 list-disc space-y-1 pl-5 text-body-sm text-muted">{status.lessonJob.sourceErrors.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
         <p className="text-body-sm text-muted">Last admin status email: {status.email.lastSentDay || "not sent yet"}. Tutor reference search: {status.configured.webSearchProvider === "wikipedia" ? "Wikipedia (free, no key)" : status.configured.webSearchProvider}.</p>
       </>}
     </div>
