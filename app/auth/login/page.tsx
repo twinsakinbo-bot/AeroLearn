@@ -72,8 +72,12 @@ function messageForCode(code: string) {
     case "auth/user-not-found":
     case "auth/wrong-password":
     case "auth/invalid-credential":
+    case "invalid_credentials":
       return "Wrong email or password. Please try again."
+    case "email_not_confirmed":
+      return "Check your inbox and confirm your email before signing in."
     case "auth/too-many-requests":
+    case "over_request_rate_limit":
       return "Too many failed attempts. Wait a few minutes, or reset your password."
     default:
       return "Couldn't sign you in. Please try again."
@@ -159,7 +163,8 @@ export default function LoginPage() {
         window.location.href = (await needsOnboarding(user.uid)) ? "/onboarding" : "/app"
       }
     } catch (err) {
-      setError(messageForCode(codeOf(err)))
+      const detail = textOf(err).toLowerCase()
+      setError(detail.includes("email not confirmed") ? "Check your inbox and confirm your email before signing in." : messageForCode(codeOf(err)))
     } finally {
       setSigningIn(false)
     }

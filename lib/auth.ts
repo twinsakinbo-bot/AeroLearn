@@ -135,6 +135,7 @@ export function onAuthStateChanged(
 /* ------------------------------------------------------------------ sign in/out */
 
 function authFail(error: { message: string } | null, fallback: string): never {
+  if (error instanceof Error) throw error
   throw new Error(error?.message || fallback)
 }
 
@@ -153,11 +154,17 @@ export async function createUserWithEmailAndPassword(
   _auth: unknown,
   email: string,
   password: string,
-): Promise<{ user: User }> {
-  const { data, error } = await getSupabase().auth.signUp({ email, password })
+  fullName?: string,
+  setup?: Record<string, unknown>,
+): Promise<{ user: User; needsEmailConfirmation: boolean }> {
+  const { data, error } = await getSupabase().auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: fullName?.trim() || undefined, aerolearn_setup: setup } },
+  })
   if (error || !data.user) authFail(error, "Could not create your account.")
   if (data.session) publish(data.session)
-  return { user: toUser(data.user!) }
+  return { user: toUser(data.user!), needsEmailConfirmation: !data.session }
 }
 
 export async function signOut(_auth?: unknown): Promise<void> {

@@ -8,15 +8,7 @@ import { ArrowRight, Check, CheckCircle2, Eye, EyeOff, Loader2, Lock, XCircle } 
 
 import { AuthShell } from "@/components/auth/auth-shell"
 import { cn } from "@/lib/utils"
-
-/** Password rules, in the order the checklist shows them. */
-const RULES: { label: string; test: (value: string) => boolean }[] = [
-  { label: "At least 6 characters", test: (v) => v.length >= 6 },
-  { label: "One uppercase letter", test: (v) => /[A-Z]/.test(v) },
-  { label: "One lowercase letter", test: (v) => /[a-z]/.test(v) },
-  { label: "One number", test: (v) => /[0-9]/.test(v) },
-  { label: "One special character", test: (v) => /[^A-Za-z0-9]/.test(v) },
-]
+import { PASSWORD_RULES, firstUnmetPasswordRule } from "@/lib/password-rules"
 
 function codeOf(err: unknown) {
   return typeof err === "object" && err !== null && "code" in err
@@ -101,13 +93,13 @@ function AuthAction() {
     }
   }, [mode, actionCode])
 
-  const unmetRule = RULES.find((rule) => !rule.test(newPassword))
+  const unmetRule = firstUnmetPasswordRule(newPassword)
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!actionCode) return
     if (unmetRule) {
-      setError(`Your new password still needs ${unmetRule.label.toLowerCase()}.`)
+      setError(`Your new password still needs ${unmetRule.toLowerCase()}.`)
       return
     }
     setError("")
@@ -213,7 +205,7 @@ function AuthAction() {
         </div>
 
         <ul className="space-y-1.5">
-          {RULES.map((rule) => {
+          {PASSWORD_RULES.map((rule) => {
             const met = rule.test(newPassword)
             return (
               <li key={rule.label} className="flex items-center gap-2 text-caption">

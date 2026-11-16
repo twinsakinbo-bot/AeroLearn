@@ -30,6 +30,7 @@ import {
   type LearningMode,
 } from "@/lib/constants"
 import { getSubjectLimit } from "@/lib/subscription"
+import { getSupabase } from "@/lib/supabase/client"
 
 /**
  * Finishing setup for an account that never went through the sign-up wizard —
@@ -149,6 +150,24 @@ export default function OnboardingPage() {
           if (data.onboardingCompleted || data.classLevel) {
             router.replace("/app")
             return
+          }
+        }
+        const { data: authData } = await getSupabase().auth.getUser()
+        const setup = authData.user?.user_metadata?.aerolearn_setup as Record<string, unknown> | undefined
+        if (setup && ["school", "exam", "self_learning"].includes(String(setup.learningMode)) &&
+            Array.isArray(setup.subjects) && setup.subjects.length > 0) {
+          const mode = setup.learningMode as LearningMode
+          const level = CLASS_LEVELS.find((item) => item === setup.classLevel) || ""
+          const exam = EXAM_TYPES.find((item) => item === setup.examType) || ""
+          if ((mode !== "school" || level) && (mode !== "exam" || exam)) {
+            setLearningMode(mode)
+            setClassLevel(level as ClassLevel | "")
+            setDepartment((DEPARTMENTS.find((item) => item === setup.department) || "") as Department | "")
+            setSchoolName(typeof setup.schoolName === "string" ? setup.schoolName : "")
+            setExamType(exam as ExamType | "")
+            setSelectedSubjects(setup.subjects.filter((item): item is string => typeof item === "string" && SUBJECTS.includes(item as (typeof SUBJECTS)[number])).slice(0, getSubjectLimit(null)))
+            setStudyEmailsEnabled(setup.studyEmailsEnabled !== false)
+            setStep("review")
           }
         }
       } catch (err) {

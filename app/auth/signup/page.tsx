@@ -13,6 +13,7 @@ import {
 import { db, doc, getDoc, setDoc } from "@/lib/db"
 import {
   ArrowRight,
+  Check,
   ChevronRight,
   Eye,
   EyeOff,
@@ -46,6 +47,9 @@ import {
   type LearningMode,
 } from "@/lib/constants"
 import { getSubjectLimit } from "@/lib/subscription"
+import { PASSWORD_RULES, firstUnmetPasswordRule } from "@/lib/password-rules"
+import { signupFailure } from "@/lib/signup-errors"
+import { cn } from "@/lib/utils"
 
 type Step = "account" | "goal" | "class" | "department" | "exam" | "subjects"
 
@@ -126,36 +130,8 @@ async function sendWelcomeEmail(user: User, name: string) {
   }
 }
 
-function codeOf(err: unknown) {
-  return typeof err === "object" && err !== null && "code" in err
-    ? String((err as { code?: unknown }).code)
-    : ""
-}
-
 function textOf(err: unknown) {
   return err instanceof Error ? err.message : ""
-}
-
-function messageForCode(code: string) {
-  switch (code) {
-    case "auth/email-already-in-use":
-      return "An account with this email already exists. Try signing in instead."
-    case "auth/invalid-email":
-      return "That doesn't look like a valid email address."
-    case "auth/invalid-credential":
-      return "Those details weren't accepted. Check the email and password."
-    case "auth/weak-password":
-      return "Passwords need at least 6 characters. Choose something stronger."
-    case "auth/operation-not-allowed":
-      return "Email sign-up is switched off right now. Use Google, or contact support."
-    case "auth/too-many-requests":
-      return "Too many attempts. Wait a few minutes and try again."
-    case "auth/network-request-failed":
-    case "auth/timeout":
-      return "Network problem. Check your connection and try again."
-    default:
-      return "Couldn't create your account. Please try again, or contact support."
-  }
 }
 
 export default function SignupPage() {
@@ -178,6 +154,8 @@ export default function SignupPage() {
 
   const [error, setError] = useState("")
   const [signingUp, setSigningUp] = useState(false)
+  const [confirmationSent, setConfirmationSent] = useState(false)
+  const [setupIncomplete, setSetupIncomplete] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -224,12 +202,21 @@ export default function SignupPage() {
   const handleNextFromAccount = (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    if (password !== confirmPassword) {
-      setError("Those two passwords don't match.")
+    if (!fullName.trim()) {
+      setError("Enter your name so we know what to call you.")
       return
     }
-    if (password.length < 6) {
-      setError("Passwords need at least 6 characters.")
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Enter a valid email address you can open.")
+      return
+    }
+    const unmet = firstUnmetPasswordRule(password)
+    if (unmet) {
+      setError(`Your password still needs ${unmet.toLowerCase()}.`)
+      return
+    }
+    if (password !== confirmPassword) {
+      setError("Those two passwords don't match.")
       return
     }
     setStep("goal")
@@ -290,8 +277,15 @@ export default function SignupPage() {
     }
     setError("")
     setSigningUp(true)
+    let accountCreated = false
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, email, password)
+      const setup = { learningMode, schoolName, classLevel, department, examType, subjects: selectedSubjects, studyEmailsEnabled }
+      const { user, needsEmailConfirmation } = await createUserWithEmailAndPassword(auth, email.trim(), password, fullName, setup)
+      accountCreated = true
+      if (needsEmailConfirmation) {
+        setConfirmationSent(true)
+        return
+      }
       await updateProfile(user, { displayName: fullName })
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
@@ -307,13 +301,20 @@ export default function SignupPage() {
         onboardingCompleted: true,
         ...NEW_PROFILE,
         studyEmailsEnabled,
-      })
+      }, { merge: true })
       await sendWelcomeEmail(user, fullName)
       // A full navigation, so the signed-in shell mounts with a clean tree.
       window.location.href = "/app"
     } catch (err) {
-      console.error("Account creation failed", err)
-      setError(messageForCode(codeOf(err)))
+      if (accountCreated) {
+        console.error("Account setup failed after signup", err)
+        setSetupIncomplete(true)
+      } else {
+        const failure = signupFailure(err)
+        setError(failure.message)
+        if (failure.field) setStep("account")
+        if (!failure.field) console.error("Account creation failed", err)
+      }
     } finally {
       setSigningUp(false)
     }
@@ -344,6 +345,14 @@ export default function SignupPage() {
       </div>
     )
   }
+
+  if (confirmationSent) return <AuthShell title="Check your email" lede={`We sent a confirmation link to ${email.trim()}. Confirm your address, then sign in to finish setting up your learning path.`}>
+    <Link href="/auth/login" className="btn-primary btn-lg btn-block">Go to sign in <ArrowRight className="h-4 w-4" /></Link>
+  </AuthShell>
+
+  if (setupIncomplete) return <AuthShell title="Your account was created" lede="We could not save the last setup step. Sign in and finish your learning path; you do not need to create another account.">
+    <Link href="/auth/login" className="btn-primary btn-lg btn-block">Sign in to continue <ArrowRight className="h-4 w-4" /></Link>
+  </AuthShell>
 
   const heading = HEADINGS[step]
 
@@ -434,6 +443,16 @@ export default function SignupPage() {
                 )}
               </button>
             </IconField>
+
+            <ul className="space-y-1.5" aria-label="Password requirements">
+              {PASSWORD_RULES.map((rule) => {
+                const met = rule.test(password)
+                return <li key={rule.label} className="flex items-center gap-2 text-caption">
+                  <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded-full border", met ? "border-success/40 bg-success/15 text-success" : "border-hairline")}>{met && <Check className="h-2.5 w-2.5" aria-hidden="true" />}</span>
+                  <span className={met ? "font-medium text-success" : "text-muted"}>{rule.label}</span>
+                </li>
+              })}
+            </ul>
 
             <IconField id="confirmPassword" label="Confirm password" icon={Lock}>
               <input
