@@ -47,6 +47,7 @@ function AuthAction() {
   // Firebase sends `mode` as resetPassword, verifyEmail or recoverEmail.
   const mode = params.get("mode")
   const actionCode = params.get("oobCode")
+  const kind = params.get("kind")
 
   const [checking, setChecking] = useState(true)
   const [email, setEmail] = useState("")
@@ -75,13 +76,13 @@ function AuthAction() {
           const address = await verifyPasswordResetCode(auth, actionCode)
           if (active) setEmail(address)
         } else if (mode === "verifyEmail") {
-          await applyActionCode(auth, actionCode)
+          await applyActionCode(auth, actionCode, kind === "email" || kind === "magiclink" ? kind : undefined)
           if (active) setDone(true)
         } else if (active) {
           setFatal("We don't know how to handle this kind of link.")
         }
       } catch (err) {
-        if (active) setFatal(messageForCode(codeOf(err)))
+        if (active) setFatal(mode === "verifyEmail" ? "This confirmation link expired or was already used. Request a new one from the sign-in page." : messageForCode(codeOf(err)))
       } finally {
         if (active) setChecking(false)
       }
@@ -91,7 +92,7 @@ function AuthAction() {
     return () => {
       active = false
     }
-  }, [mode, actionCode])
+  }, [mode, actionCode, kind])
 
   const unmetRule = firstUnmetPasswordRule(newPassword)
 

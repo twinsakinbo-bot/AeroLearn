@@ -79,9 +79,9 @@ function headingFor(step: Step, limitSentence: string) {
 }
 
 /**
- * Google accounts are the only ones that reach onboarding — an email sign-up
- * collects all of this in the wizard and skips it — so this is where their
- * welcome email goes out. Best-effort: it must never block the setup.
+ * Google accounts start here; confirmed email accounts also return here with
+ * their wizard choices prefilled from signup metadata. Send the welcome email
+ * after either route finishes setup. Best-effort: it must never block setup.
  */
 async function sendWelcomeEmail(user: User, name: string) {
   try {

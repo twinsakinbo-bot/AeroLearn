@@ -1,101 +1,54 @@
 import { NextResponse } from "next/server"
+
 import { getAdminAuth } from "@/lib/db-admin"
-import { Resend } from "resend"
-
-import { MAIL_FROM, emailLayout, emailParagraph, escapeHtml } from "@/lib/email-template"
 import { clientIp, rateLimit } from "@/lib/rate-limit"
+import { getSupabaseAdmin } from "@/lib/supabase/admin"
 import { siteUrl } from "@/lib/site"
+import { sendVerificationEmail } from "@/lib/verification-email"
 
-/**
- * `new Resend(undefined)` throws, and this ran at module scope — the very crash
- * its sibling `reset-password` carries a comment about avoiding. Built without
- * RESEND_API_KEY in the environment, importing this route failed the build. The
- * client is created per request now, after the key has been checked.
- *
- * Rate limited for the same reason as the reset route: with no cap, one loop
- * makes AeroLearn mail any address the caller names, repeatedly.
- */
-const RULE = { max: 4, windowMs: 15 * 60 * 1000 }
+const RULE = { max: 4, windowMs: 15 * 60_000 }
+const SENT = { success: true, message: "If this address has an unconfirmed account, a new link is on its way." }
 
-export async function POST(req: Request) {
-  const throttle = rateLimit("verify-email", clientIp(req), RULE)
-  if (!throttle.ok) {
-    return NextResponse.json(
-      { error: "Too many verification requests from this connection. Try again shortly." },
-      { status: 429, headers: { "Retry-After": String(throttle.retryAfter) } },
-    )
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => null)
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 })
   }
 
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) {
-    console.error("RESEND_API_KEY is not set")
-    return NextResponse.json({ error: "Email service not configured." }, { status: 503 })
+  const perIp = rateLimit("verify-email-ip", clientIp(request), RULE)
+  const perEmail = rateLimit("verify-email-address", email, RULE)
+  if (!perIp.ok || !perEmail.ok) {
+    return NextResponse.json({ error: "Too many requests. Wait a few minutes before trying again." }, { status: 429 })
   }
-  const resend = new Resend(resendKey)
+  if (!process.env.RESEND_API_KEY) {
+    return NextResponse.json({ error: "Email service is unavailable. Try again later." }, { status: 503 })
+  }
 
   try {
-    const { email } = await req.json()
+    // Only send to a real, unconfirmed account. A magic link generated for an
+    // unknown address can create a user, and a confirmed account needs no link.
+    const admin = getSupabaseAdmin()
+    const { data: profile, error: profileError } = await admin
+      .from("users")
+      .select("id")
+      .eq("data->>email", email)
+      .maybeSingle()
+    if (profileError) throw profileError
+    if (!profile) return NextResponse.json(SENT)
 
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 })
-    }
+    const { data: account, error: accountError } = await admin.auth.admin.getUserById(profile.id)
+    if (accountError) throw accountError
+    if (!account.user || account.user.email_confirmed_at) return NextResponse.json(SENT)
 
-    // 1. Ask Supabase for a confirmation link for this address
-    let rawLink: string
-    try {
-      rawLink = await getAdminAuth().generateEmailVerificationLink(email)
-    } catch (linkErr: any) {
-      console.error("Could not generate a verification link:", linkErr)
-      return NextResponse.json({ success: true, message: "If an account exists, a verification link was sent." })
-    }
+    const rawLink = await getAdminAuth().generateEmailVerificationLink(email)
+    const code = new URL(rawLink).searchParams.get("token")
+    if (!code) throw new Error("No confirmation token was returned.")
 
-    /* 2. Take the code out of that link — `token` on Supabase's verify URL, where
-       Firebase used `oobCode`. The outgoing query name stays `oobCode`, so
-       /auth/action reads it exactly as before. */
-    const url = new URL(rawLink)
-    const oobCode = url.searchParams.get("token")
-
-    if (!oobCode) {
-      throw new Error("The generated verification link carried no token.")
-    }
-
-    // 3. Construct our own action URL, on our own origin
-    const customLink = siteUrl(
-      `/auth/action?mode=verifyEmail&oobCode=${encodeURIComponent(oobCode)}`,
-    )
-
-    // 4. Send it
-    const { error } = await resend.emails.send({
-      from: MAIL_FROM.support,
-      to: [email],
-      subject: "Verify your email address for AeroLearn 🚀",
-      html: emailLayout({
-        preheader: "One click and your AeroLearn account is active.",
-        heading: "Verify your email address",
-        body:
-          emailParagraph(
-            `You are one step from your account being active. Confirm that <strong>${escapeHtml(
-              String(email),
-            )}</strong> is yours and you are in.`,
-          ) +
-          emailParagraph(
-            "The link works once. If it has already expired by the time you click it, ask for a " +
-              "new one from the sign-in page.",
-          ),
-        cta: { label: "Verify my email", href: customLink },
-        footnote:
-          "If you did not create an AeroLearn account, ignore this email — nothing was set up in your name.",
-      }),
-    })
-
-    if (error) {
-      console.error("Resend Error:", error)
-      return NextResponse.json({ error: "Failed to send verification email." }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, message: "Verification email sent!" })
-  } catch (error: any) {
-    console.error("Custom Email Verification Error:", error)
-    return NextResponse.json({ error: "Internal server error." }, { status: 500 })
+    await sendVerificationEmail(email, siteUrl(`/auth/action?mode=verifyEmail&kind=magiclink&oobCode=${encodeURIComponent(code)}`))
+    return NextResponse.json(SENT)
+  } catch (error) {
+    console.error("Could not resend confirmation:", error)
+    return NextResponse.json({ error: "Could not send a new link. Try again later." }, { status: 503 })
   }
 }

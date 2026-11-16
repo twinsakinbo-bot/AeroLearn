@@ -156,15 +156,15 @@ export async function createUserWithEmailAndPassword(
   password: string,
   fullName?: string,
   setup?: Record<string, unknown>,
-): Promise<{ user: User; needsEmailConfirmation: boolean }> {
-  const { data, error } = await getSupabase().auth.signUp({
-    email,
-    password,
-    options: { data: { full_name: fullName?.trim() || undefined, aerolearn_setup: setup } },
+): Promise<{ confirmationSent: boolean }> {
+  const response = await fetch("/api/auth/signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, fullName, setup }),
   })
-  if (error || !data.user) authFail(error, "Could not create your account.")
-  if (data.session) publish(data.session)
-  return { user: toUser(data.user!), needsEmailConfirmation: !data.session }
+  const result = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(result?.error || "Could not create your account.")
+  return { confirmationSent: Boolean(result?.confirmationSent) }
 }
 
 export async function signOut(_auth?: unknown): Promise<void> {
@@ -306,28 +306,36 @@ export async function confirmPasswordReset(
 /**
  * Email-address confirmation links.
  *
- * /api/auth/verify-email issues these as magic links, because Supabase's
- * `signup` link type needs the password and the server does not have it. Older
- * links — and anything Supabase's own confirmation mail sent — verify as
- * `email`, so that is tried second rather than reported as a dead link.
+ * New signup links use `email` verification, while resend links use `magiclink`.
+ * Older links have no kind, so they try both for compatibility.
  */
-export async function applyActionCode(_auth: unknown, code: string): Promise<void> {
+export async function applyActionCode(_auth: unknown, code: string, kind?: "email" | "magiclink"): Promise<void> {
   const client = getSupabase()
+  if (kind) {
+    const { data, error } = await client.auth.verifyOtp({ token_hash: code, type: kind })
+    if (error) authFail(error, "This confirmation link is no longer valid.")
+    publish(data.session)
+    return
+  }
   const first = await client.auth.verifyOtp({ token_hash: code, type: "magiclink" })
   if (!first.error) {
     publish(first.data.session)
     return
   }
   const { data, error } = await client.auth.verifyOtp({ token_hash: code, type: "email" })
-  if (error) authFail(first.error, "This confirmation link is no longer valid.")
+  if (error) authFail(error, "This confirmation link is no longer valid.")
   publish(data.session)
 }
 
 export async function sendEmailVerification(_user?: User): Promise<void> {
   const email = cachedUser?.email
   if (!email) throw new Error("Not signed in.")
-  const { error } = await getSupabase().auth.resend({ type: "signup", email })
-  if (error) authFail(error, "Could not resend the confirmation email.")
+  const response = await fetch("/api/auth/verify-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  })
+  if (!response.ok) throw new Error("Could not resend the confirmation email.")
 }
 
 

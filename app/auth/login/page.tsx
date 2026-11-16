@@ -94,6 +94,8 @@ export default function LoginPage() {
   const [signingIn, setSigningIn] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [resendingConfirmation, setResendingConfirmation] = useState(false)
+  const [confirmationNotice, setConfirmationNotice] = useState("")
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
   const [showSaved, setShowSaved] = useState(false)
 
@@ -210,6 +212,25 @@ export default function LoginPage() {
     }
   }
 
+  const handleResendConfirmation = async () => {
+    setResendingConfirmation(true)
+    setConfirmationNotice("")
+    try {
+      const response = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(result?.error || "Could not send a new link.")
+      setConfirmationNotice("If your email still needs confirmation, a new link is on its way. Check your inbox and spam folder.")
+    } catch (err) {
+      setConfirmationNotice(textOf(err) || "Could not send a new link. Try again later.")
+    } finally {
+      setResendingConfirmation(false)
+    }
+  }
+
   // Nothing renders until mount: the saved-account list comes from
   // localStorage, and rendering it on the server would flash the wrong panel.
   if (!mounted) {
@@ -292,13 +313,17 @@ export default function LoginPage() {
       ) : (
         <>
           {error && (
-            <p
-              role="alert"
-              className="mb-5 flex items-start gap-2 rounded-lg border border-danger/35 bg-danger/10 px-4 py-3 text-body-sm font-medium text-danger"
-            >
-              {error}
-            </p>
+            <div className="mb-5 rounded-lg border border-danger/35 bg-danger/10 px-4 py-3">
+              <p role="alert" className="text-body-sm font-medium text-danger">{error}</p>
+              {error.includes("confirm your email") && (
+                <button type="button" onClick={handleResendConfirmation} disabled={resendingConfirmation} className="mt-2 text-body-sm font-semibold text-accent underline underline-offset-2 disabled:opacity-50">
+                  {resendingConfirmation ? "Sending…" : "Resend confirmation email"}
+                </button>
+              )}
+            </div>
           )}
+
+          {confirmationNotice && <p role="status" className="mb-5 rounded-lg border border-hairline bg-surface-sunken px-4 py-3 text-body-sm text-foreground">{confirmationNotice}</p>}
 
           {resetSent && (
             <p

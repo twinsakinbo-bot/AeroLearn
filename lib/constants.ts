@@ -112,6 +112,7 @@ export const SUBJECTS = [
   "History",
   "CRS / IRK",
   "Creative Arts",
+  "Computer Studies",
   "French Language",
   "Physical & Health Education",
   "Fine Art",
