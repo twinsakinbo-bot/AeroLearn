@@ -25,6 +25,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import type { PracticeQuestion } from "@/lib/types/question"
+import { requireSchedulerOrAdmin } from "@/lib/api-auth"
 
 /** ALOC slug → the subject name this app uses everywhere else. */
 const SUBJECTS: Record<string, string> = {
@@ -214,24 +215,8 @@ function upstreamMessage(status: number): string {
 }
 
 export async function POST(request: NextRequest) {
-  const idToken = request.headers.get("authorization")?.replace("Bearer ", "").trim()
-  if (!idToken) {
-    return NextResponse.json({ error: "Sign in as an admin first." }, { status: 401 })
-  }
-
-  try {
-    const { getAdminAuth, getAdminDb } = await import("@/lib/db-admin")
-    const decoded = await getAdminAuth().verifyIdToken(idToken)
-    const userSnap = await getAdminDb().collection("users").doc(decoded.uid).get()
-    if (!userSnap.exists || userSnap.data()?.role !== "admin") {
-      return NextResponse.json({ error: "Admin access is required." }, { status: 403 })
-    }
-  } catch {
-    return NextResponse.json(
-      { error: "That sign-in could not be verified. Sign in again." },
-      { status: 401 },
-    )
-  }
+  const gate = await requireSchedulerOrAdmin(request)
+  if (!gate.ok) return gate.response
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) {

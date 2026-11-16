@@ -310,6 +310,9 @@ export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeConv, setActiveConv] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const [webSearchAvailable, setWebSearchAvailable] = useState(false)
+  const [quizModeEnabled, setQuizModeEnabled] = useState(false)
   const [userCache, setUserCache] = useState<Record<string, Person>>({})
 
   const [draft, setDraft] = useState("")
@@ -478,7 +481,12 @@ export default function MessagesPage() {
     let live = true
     fetch("/api/ai-chat")
       .then((response) => response.json())
-      .then((data) => { if (live) setAiAudioAvailable(data.audioTranscription === true) })
+      .then((data) => {
+        if (live) {
+          setAiAudioAvailable(data.audioTranscription === true)
+          setWebSearchAvailable(data.webSearch === true)
+        }
+      })
       .catch(() => {})
     return () => { live = false }
   }, [])
@@ -653,7 +661,7 @@ export default function MessagesPage() {
       }
     } catch (error) {
       console.error("The assistant did not reply:", error)
-      setBanner({ tone: "error", text: "The assistant could not reply. Please try again." })
+      setBanner({ tone: "error", text: error instanceof Error ? error.message : "The assistant could not reply. Please try again." })
       updateDoc(convRef, { typing: arrayRemove(AI_BOT_ID) }).catch(() => {})
     }
   }
@@ -690,7 +698,11 @@ export default function MessagesPage() {
       })
 
       if (conv.participants.includes(AI_BOT_ID)) {
-        void askBot(conv, { message: text, mediaUrl, mediaType: mediaUrl ? "image" : undefined })
+        void askBot(conv, {
+          message: text, mediaUrl, mediaType: mediaUrl ? "image" : undefined,
+          webSearch: webSearchEnabled, quizMode: quizModeEnabled,
+          history: messages.slice(-8).filter((item) => item.text).map((item) => ({ role: item.senderId === AI_BOT_ID ? "assistant" : "user", text: item.text })),
+        })
       }
     } catch (error) {
       console.error("Failed to send:", error)
@@ -1498,6 +1510,21 @@ export default function MessagesPage() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {activeConv.participants.includes(AI_BOT_ID) && (
+                  <div className="mb-2 flex flex-wrap gap-2" aria-label="AI tutor options">
+                    {webSearchAvailable && (
+                      <button type="button" aria-pressed={webSearchEnabled} onClick={() => setWebSearchEnabled((enabled) => !enabled)}
+                        className={cn("rounded-full border px-3 py-1.5 text-caption font-semibold", webSearchEnabled ? "border-accent bg-accent/10 text-accent" : "border-hairline text-muted")}>
+                        {webSearchEnabled ? "✓ " : ""}Search web
+                      </button>
+                    )}
+                    <button type="button" aria-pressed={quizModeEnabled} onClick={() => setQuizModeEnabled((enabled) => !enabled)}
+                      className={cn("rounded-full border px-3 py-1.5 text-caption font-semibold", quizModeEnabled ? "border-accent bg-accent/10 text-accent" : "border-hairline text-muted")}>
+                      {quizModeEnabled ? "✓ " : ""}Quiz me
+                    </button>
                   </div>
                 )}
 

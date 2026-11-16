@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 
 import { aiKey, aiModel, chatCompletion } from "@/lib/ai-provider"
 import { parseAiJson } from "@/lib/ai-json"
-import { requireAdmin } from "@/lib/api-auth"
+import { requireSchedulerOrAdmin } from "@/lib/api-auth"
 import { getCurriculumDocument, listCurriculumSubjects, researchCurriculum } from "@/lib/curriculum-research"
 
 export const maxDuration = 300
@@ -45,7 +45,7 @@ async function references(classLevel: string, subject: string) {
 }
 
 export async function GET(request: Request) {
-  const gate = await requireAdmin(request)
+  const gate = await requireSchedulerOrAdmin(request)
   if (!gate.ok) return gate.response
   const params = new URL(request.url).searchParams
   const classLevel = params.get("classLevel")
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const gate = await requireAdmin(request)
+  const gate = await requireSchedulerOrAdmin(request)
   if (!gate.ok) return gate.response
   if (!aiKey) return NextResponse.json({ error: "COARENA_API_KEY is not configured." }, { status: 503 })
   const body = await request.json().catch(() => null)

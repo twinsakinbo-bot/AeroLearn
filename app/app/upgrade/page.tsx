@@ -344,6 +344,16 @@ export default function UpgradePage() {
       } catch (cause) {
         setTrustPassError(cause instanceof Error ? cause.message : "The Trust Pass could not start.")
       }
+      try {
+        const idToken = await user.getIdToken()
+        await fetch("/api/subscription/notify-receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ requestId: receipt.id }),
+        })
+      } catch (cause) {
+        console.error("The receipt was saved, but the admin email could not be sent:", cause)
+      }
       setSubmitted(true)
     } catch (cause) {
       console.error("Failed to submit the receipt:", cause)

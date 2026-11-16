@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
 
 import { aiKey, chatCompletion } from "@/lib/ai-provider"
-import { requireAdmin } from "@/lib/api-auth"
+import { requireSchedulerOrAdmin } from "@/lib/api-auth"
 import { parseAiJson } from "@/lib/ai-json"
 
 type Issue = { index: number; reason: string }
 
 export async function POST(request: Request) {
-  const gate = await requireAdmin(request)
+  const gate = await requireSchedulerOrAdmin(request)
   if (!gate.ok) return gate.response
   if (!aiKey) return NextResponse.json({ error: "Set COARENA_API_KEY to review ALOC questions." }, { status: 503 })
 
