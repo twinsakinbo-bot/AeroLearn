@@ -68,6 +68,7 @@ export default function TermsPage() {
           <li>Our team verifies the payment manually, normally within 24 hours</li>
           <li>A 24-hour Trust Pass activates as soon as you submit the receipt, so you are not kept waiting</li>
         </ul>
+        <p>Paid access starts when we approve the transfer and ends at the plan expiry shown in your account. Monthly access lasts 30 days. Plans do not renew or charge you automatically; you can make another transfer to renew.</p>
         <p>
           <strong>
             Payments are non-refundable once a subscription period has started, except where there has

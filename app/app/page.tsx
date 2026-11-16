@@ -341,7 +341,7 @@ export default function DashboardPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <Link href="/app/practice" className="card-interactive flex items-center gap-4 p-5">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent"><Target size={21} aria-hidden="true" /></span>
-            <span><span className="block text-body font-semibold text-foreground">Practice questions</span><span className="text-caption text-muted">Try a short set for your subjects</span></span>
+            <span><span className="block text-body font-semibold text-foreground">Five-question quick challenge</span><span className="text-caption text-muted">A short win for your streak and XP</span></span>
             <ChevronRight size={17} className="ml-auto text-subtle" aria-hidden="true" />
           </Link>
           <Link href="/app/messages" className="card-interactive flex items-center gap-4 p-5">

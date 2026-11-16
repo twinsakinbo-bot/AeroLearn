@@ -131,6 +131,7 @@ export default function OnboardingPage() {
   const [schoolName, setSchoolName] = useState("")
   const [examType, setExamType] = useState<ExamType | "">("")
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
+  const [studyEmailsEnabled, setStudyEmailsEnabled] = useState(true)
 
   // Signed-out students belong on the sign-in page, and students who have
   // already answered these questions belong in the app.
@@ -299,6 +300,7 @@ export default function OnboardingPage() {
           learningMode === "school" && schoolName.trim() !== "" ? schoolName.trim() : null,
         subjects: selectedSubjects,
         onboardingCompleted: true,
+        studyEmailsEnabled,
         updatedAt: new Date(),
       })
       await sendWelcomeEmail(user, user.displayName || "Student")
@@ -530,6 +532,11 @@ export default function OnboardingPage() {
               ))}
             </SummaryRow>
           </dl>
+
+          <label className="mt-4 flex items-start gap-3 rounded-lg border border-hairline p-3 text-body-sm text-muted">
+            <input type="checkbox" checked={studyEmailsEnabled} onChange={(event) => setStudyEmailsEnabled(event.target.checked)} className="mt-1" />
+            <span>Send me study reminders and learning tips by email. I can turn these off in Settings. Account and plan expiry emails still arrive.</span>
+          </label>
 
           <div className="mt-7 flex gap-3">
             <BackButton onClick={() => setStep("subjects")} />

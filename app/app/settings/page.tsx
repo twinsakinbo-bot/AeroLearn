@@ -47,6 +47,7 @@ export default function SettingsPage() {
   const [exam, setExam] = useState<string | null>(null)
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [cap, setCap] = useState(2)
+  const [studyEmailsEnabled, setStudyEmailsEnabled] = useState(true)
 
   const [saving, setSaving] = useState(false)
   const [banner, setBanner] = useState<Banner | null>(null)
@@ -67,6 +68,7 @@ export default function SettingsPage() {
           setExam(data.examType ?? null)
           setSubjects(data.subjects ?? [])
           setCap(getSubjectLimit(data))
+          setStudyEmailsEnabled(data.studyEmailsEnabled !== false)
         }
       } catch (error) {
         console.error("Failed to load your settings:", error)
@@ -88,6 +90,7 @@ export default function SettingsPage() {
         classLevel: mode === "school" ? classLevel : null,
         examType: mode === "exam" ? exam : null,
         subjects,
+        studyEmailsEnabled,
       })
       setBanner({ tone: "success", text: "Settings saved." })
     } catch (error) {
@@ -292,6 +295,14 @@ export default function SettingsPage() {
           <Save size={16} aria-hidden="true" />
           {saving ? "Saving…" : "Save preferences"}
         </button>
+
+        <section className="card p-5 sm:p-6">
+          <h2 className="text-body font-semibold text-foreground">Email reminders</h2>
+          <label className="mt-3 flex items-start gap-3 text-body-sm text-muted">
+            <input type="checkbox" checked={studyEmailsEnabled} onChange={(event) => setStudyEmailsEnabled(event.target.checked)} className="mt-1" />
+            <span>Send me study reminders and learning tips. Turn this off and save to opt out. Account and plan expiry emails still arrive.</span>
+          </label>
+        </section>
 
         <section className="card mt-8 p-5 sm:p-6">
           <h2 className="field-label">Account</h2>

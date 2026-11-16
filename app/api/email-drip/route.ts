@@ -10,9 +10,15 @@ import {
   emailParagraph,
   escapeHtml,
 } from "@/lib/email-template"
+import { siteUrl } from "@/lib/site"
+import { GET as runReminders } from "@/app/api/subscription/reminders/route"
+
+export const maxDuration = 300
 
 // Vercel cron sends GET requests
 export async function GET(req: NextRequest) {
+  const reminders = await runReminders(req)
+  if (!reminders.ok) return reminders
   return runDripCampaign(req)
 }
 
@@ -26,7 +32,7 @@ const DEFAULT_DRIP_SCHEDULE = [
 /* Sent to people who have not asked for each one individually, so every template
    says why it arrived. There is no unsubscribe link yet — see the note in
    `runDripCampaign`. */
-const WHY_THIS_EMAIL = "You are receiving this because you created an AeroLearn account."
+const WHY_THIS_EMAIL = `You are receiving this because you created an AeroLearn account. <a href="${siteUrl("/app/settings")}">Turn off study and learning-tip emails in Settings</a>.`
 
 const EMAIL_TEMPLATES: Record<string, (name: string) => string> = {
   day3_quiz: (name) =>
@@ -137,7 +143,8 @@ async function runDripCampaign(req: NextRequest) {
 
     for (const userDoc of usersSnap.docs) {
       const userData = userDoc.data()
-      if (!userData.email || !userData.createdAt) continue
+      if (!userData.email || !userData.createdAt || userData.studyEmailsEnabled === false ||
+          userData.lastEmailActivityDate === new Date().toISOString().slice(0, 10)) continue
 
       const createdAt = userData.createdAt.toDate ? userData.createdAt.toDate() : new Date(userData.createdAt)
       const daysSinceSignup = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
@@ -151,16 +158,18 @@ async function runDripCampaign(req: NextRequest) {
             const template = EMAIL_TEMPLATES[drip.templateKey]
             if (!template) continue
 
-            await resend.emails.send({
+            const sent = await resend.emails.send({
               from: MAIL_FROM.hello,
               to: userData.email,
               subject: drip.subject,
               html: template(userData.displayName || "Student"),
             })
+            if (sent.error) throw sent.error
 
             await adminDb.collection("users").doc(userDoc.id).update({
               lastDripEmailDay: drip.day,
               lastDripEmailDate: now,
+              lastEmailActivityDate: now.toISOString().slice(0, 10),
             })
 
             emailsSent++

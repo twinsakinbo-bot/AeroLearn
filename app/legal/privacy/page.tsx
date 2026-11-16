@@ -160,6 +160,7 @@ export default function PrivacyPolicyPage() {
           <li>Verify the receipt you upload for a Pro subscription</li>
           <li>Answer your questions in the AI tutor and grade practice essays</li>
           <li>Send you account and service email — see section 6</li>
+          <li>Send study reminders and learning tips if you leave them enabled; turn them off in Settings at any time</li>
           <li>Detect and prevent fraud, cheating and abuse</li>
           <li>Diagnose faults and improve the platform</li>
         </ul>
@@ -179,7 +180,7 @@ export default function PrivacyPolicyPage() {
         <h2>5. AI features and what reaches them</h2>
         <p>
           The AI tutor, essay grader, flashcard generator, quiz generator and timetable builder work
-          by sending your request to <strong>Aether AI Gateway</strong>, which routes it to an AI
+          by sending your request to <strong>Coarena Model API</strong> when configured, or the existing Aether gateway during the transition. The gateway routes it to an AI
           provider and returns the answer.
         </p>
         <p>What is sent is limited to what the feature needs:</p>
@@ -217,7 +218,7 @@ export default function PrivacyPolicyPage() {
             <strong>Vercel</strong> — hosting and content delivery for the website and API.
           </li>
           <li>
-            <strong>Aether AI Gateway and its model providers</strong> — AI inference for the features in section 5.
+            <strong>Coarena Model API, Aether AI Gateway and their model providers</strong> — AI inference for the features in section 5.
           </li>
           <li>
             <strong>Resend</strong> — sending transactional email (verification, password reset,

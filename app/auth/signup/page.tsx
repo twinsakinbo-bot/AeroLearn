@@ -166,6 +166,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [studyEmailsEnabled, setStudyEmailsEnabled] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
 
   const [learningMode, setLearningMode] = useState<LearningMode | "">("")
@@ -305,6 +306,7 @@ export default function SignupPage() {
         // The wizard already collected everything onboarding would ask for.
         onboardingCompleted: true,
         ...NEW_PROFILE,
+        studyEmailsEnabled,
       })
       await sendWelcomeEmail(user, fullName)
       // A full navigation, so the signed-in shell mounts with a clean tree.
@@ -446,6 +448,11 @@ export default function SignupPage() {
                 className="input-premium pl-10"
               />
             </IconField>
+
+            <label className="flex items-start gap-3 rounded-lg border border-hairline p-3 text-body-sm text-muted">
+              <input type="checkbox" checked={studyEmailsEnabled} onChange={(event) => setStudyEmailsEnabled(event.target.checked)} className="mt-1" />
+              <span>Send me study reminders and learning tips by email. I can turn these off anytime in Settings. Account and plan expiry emails still arrive.</span>
+            </label>
 
             <button type="submit" className="btn-primary btn-lg btn-block">
               Continue

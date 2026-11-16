@@ -33,6 +33,22 @@ import { PageHeader } from "@/components/ui/page-header"
 import { getDownloadURL, ref, storage } from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import { expectedAmount, planDays, planName } from "@/lib/plans"
+import { auth } from "@/lib/auth"
+
+type ActivePlan = { id: string; name: string; email: string; plan: string; expiresAt: string | null }
+
+async function planAction(body: Record<string, string>, method: "GET" | "POST" = "POST") {
+  const token = await auth.currentUser?.getIdToken()
+  if (!token) throw new Error("Sign in again to manage plans.")
+  const response = await fetch("/api/admin/subscriptions", {
+    method,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    ...(method === "POST" ? { body: JSON.stringify(body) } : {}),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || "Could not manage this plan.")
+  return data
+}
 
 /**
  * Manual bank-transfer verification queue.
@@ -190,6 +206,8 @@ function expiryFor(planId: string, current: Date | null): Date | null {
 
 export default function AdminSubscriptionsPage() {
   const [requests, setRequests] = useState<Request[]>([])
+  const [activePlans, setActivePlans] = useState<ActivePlan[]>([])
+  const [revoking, setRevoking] = useState<ActivePlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [working, setWorking] = useState<string | null>(null)
@@ -207,6 +225,8 @@ export default function AdminSubscriptionsPage() {
         query(collection(db, "verificationRequests"), where("status", "==", "pending")),
       )
       setRequests(await withFreshLinks(snap.docs.map(rowFrom).sort(byNewest)))
+      const plans = await planAction({}, "GET")
+      setActivePlans(plans.active || [])
     } catch (cause) {
       console.error("Failed to load verification requests:", cause)
       setError(
@@ -241,29 +261,10 @@ export default function AdminSubscriptionsPage() {
     setWorking(request.id)
     setActionError("")
     try {
-      const userRef = doc(db, "users", request.userId)
-
-      /* Read the expiry already on file so a renewal adds to it. */
-      const snap = await getDoc(userRef)
-      const current = snap.exists() ? toDate(snap.data().proExpiresAt) : null
-      const expiresAt = expiryFor(request.planId, current)
-
-      await updateDoc(userRef, {
-        /* The plan id itself, not "pro": `isProUser` accepts weekly, monthly and
-           lifetime, and the students table has a label for each. */
-        subscription: request.planId || "monthly",
-        proExpiresAt: expiresAt,
-        pendingPlan: deleteField(),
-        pendingSince: deleteField(),
-        trustPassRequestId: deleteField(),
-      })
-
-      await updateDoc(doc(db, "verificationRequests", request.id), {
-        status: "approved",
-        reviewedAt: serverTimestamp(),
-      })
+      const result = await planAction({ action: "approve", requestId: request.id, userId: request.userId })
 
       setRequests((rows) => rows.filter((row) => row.id !== request.id))
+      setActivePlans((rows) => [{ id: request.userId, name: request.userName || "Student", email: request.userEmail, plan: request.planId, expiresAt: result.expiresAt }, ...rows.filter((row) => row.id !== request.userId)])
       setDone({ verb: "approved", who: request.userEmail })
     } catch (cause) {
       console.error("Failed to approve the request:", cause)
@@ -275,6 +276,19 @@ export default function AdminSubscriptionsPage() {
     } finally {
       setWorking(null)
     }
+  }
+
+  const revoke = async (plan: ActivePlan) => {
+    setWorking(plan.id)
+    setActionError("")
+    try {
+      await planAction({ action: "revoke", userId: plan.id })
+      setActivePlans((rows) => rows.filter((row) => row.id !== plan.id))
+      setRevoking(null)
+      setDone({ verb: "revoked", who: plan.email })
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "Could not revoke this plan.")
+    } finally { setWorking(null) }
   }
 
   const reject = async (request: Request) => {
@@ -546,6 +560,24 @@ export default function AdminSubscriptionsPage() {
           </div>
         </div>
       )}
+      <section className="card mt-8 p-5">
+        <h2 className="text-h4 font-semibold text-foreground">Active plans</h2>
+        <p className="mt-1 text-caption text-muted">Paid access ends automatically at its expiry. Revoke removes access immediately.</p>
+        {activePlans.length === 0 ? <p className="mt-4 text-body-sm text-muted">No active student plans.</p> : (
+          <ul className="mt-4 divide-y divide-hairline">
+            {activePlans.map((plan) => <li key={plan.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div><p className="text-body-sm font-semibold text-foreground">{plan.name} · {planName(plan.plan)}</p><p className="text-caption text-muted">{plan.email} · {plan.expiresAt ? `Ends ${new Date(plan.expiresAt).toLocaleDateString("en-NG")}` : "Lifetime"}</p></div>
+              <button type="button" className="btn-danger btn-sm" onClick={() => setRevoking(plan)}>Revoke plan</button>
+            </li>)}
+          </ul>
+        )}
+      </section>
+      {revoking && <div role="dialog" aria-modal="true" aria-labelledby="revoke-title" className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/50 p-4">
+        <div className="card w-full max-w-md p-6"><h2 id="revoke-title" className="text-h4 font-semibold text-foreground">Revoke {revoking.name}&apos;s plan?</h2>
+          <p className="mt-2 text-body-sm text-muted">Their Pro access will end immediately. This does not refund the transfer.</p>
+          <div className="mt-5 flex justify-end gap-2"><button type="button" className="btn-secondary btn-sm" onClick={() => setRevoking(null)} disabled={working === revoking.id}>Keep plan</button><button type="button" className="btn-danger btn-sm" onClick={() => void revoke(revoking)} disabled={working === revoking.id}>{working === revoking.id ? "Revoking…" : "Revoke access"}</button></div>
+        </div>
+      </div>}
     </>
   )
 }
