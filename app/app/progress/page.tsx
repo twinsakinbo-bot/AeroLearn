@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { ProgressBar } from "@/components/ui/progress-bar"
 import { StatCard } from "@/components/ui/stat-card"
 import { BADGES } from "@/lib/constants"
+import { dormantStreak, lagosDayKey } from "@/lib/streak"
 import { cn } from "@/lib/utils"
 
 /**
@@ -22,7 +23,7 @@ import { cn } from "@/lib/utils"
  * a badge shelf reading `users/{uid}.badges`, which is initialised to `[]` and
  * likewise never written — plus one hardcoded fake locked badge to fill the
  * grid. The ledger is gone. The shelf stayed, but badges are now *derived* here
- * from counters that are genuinely maintained, so the eight in `BADGES` unlock
+ * from counters that are genuinely maintained, so the badges unlock
  * on their own and each locked one shows how far off it is.
  */
 
@@ -37,7 +38,6 @@ type Stats = {
   subjects: number
   quizzes: number
   perfect: number
-  homework: number
 }
 
 const EMPTY: Stats = {
@@ -51,7 +51,6 @@ const EMPTY: Stats = {
   subjects: 0,
   quizzes: 0,
   perfect: 0,
-  homework: 0,
 }
 
 /** Each badge requirement, mapped to the counter that satisfies it. */
@@ -64,11 +63,9 @@ function progressFor(type: string, stats: Stats) {
     case "total_xp":
       return stats.xp
     case "streak":
-      return stats.bestStreak
+      return stats.streak
     case "questions_answered":
       return stats.attempted
-    case "homework_completed":
-      return stats.homework
     case "subjects_studied":
       return stats.subjects
     case "perfect_quizzes":
@@ -79,25 +76,18 @@ function progressFor(type: string, stats: Stats) {
 }
 
 /**
- * Profile counters, the student's quiz results and their completed homework,
- * fetched together. Quiz results are the only source for "how many quizzes" and
- * "any perfect scores" — neither is kept on the profile.
+ * Profile counters and saved quiz results. Practice writes its totals directly
+ * to the profile; the old nested `studyStats` object is only initialised, never
+ * incremented, so reading it showed a false zero for active students.
  */
 async function loadStats(uid: string): Promise<Stats> {
-  const [profileSnap, quizSnap, homeworkSnap] = await Promise.all([
+  const [profileSnap, quizSnap] = await Promise.all([
     getDoc(doc(db, "users", uid)),
     getDocs(query(collection(db, "quizResults"), where("userId", "==", uid))),
-    getDocs(
-      query(collection(db, "homeworkSubmissions"), where("studentId", "==", uid)),
-    ),
   ])
 
-  const data = profileSnap.exists() ? profileSnap.data() : {}
-  const studyStats = (data.studyStats ?? {}) as {
-    questionsAttempted?: number
-    questionsCorrect?: number
-    subjectsStudied?: string[]
-  }
+  if (!profileSnap.exists()) throw new Error("Your progress profile is missing")
+  const data = profileSnap.data()
 
   let perfect = 0
   quizSnap.forEach((result) => {
@@ -105,14 +95,9 @@ async function loadStats(uid: string): Promise<Stats> {
     if (totalQuestions > 0 && score >= totalQuestions) perfect += 1
   })
 
-  // Status is filtered here rather than in the query: a second equality filter
-  // would need a composite index, and the document set is the same either way.
-  let homework = 0
-  homeworkSnap.forEach((submission) => {
-    if (submission.data().status === "completed") homework += 1
-  })
-
-  const streak: number = data.streak || 0
+  const streak = dormantStreak(data, lagosDayKey())
+  const attempted = Math.max(0, Number(data.totalQuestionsAnswered) || 0)
+  const correct = Math.min(attempted, Math.max(0, Number(data.totalQuestionsCorrect) || 0))
 
   return {
     xp: data.xp || 0,
@@ -120,12 +105,11 @@ async function loadStats(uid: string): Promise<Stats> {
     streak,
     bestStreak: Math.max(streak, data.longestStreak || 0),
     lessons: Array.isArray(data.completedLessons) ? data.completedLessons.length : 0,
-    attempted: studyStats.questionsAttempted || 0,
-    correct: studyStats.questionsCorrect || 0,
-    subjects: studyStats.subjectsStudied?.length || 0,
+    attempted,
+    correct,
+    subjects: Array.isArray(data.subjectsStudied) ? new Set(data.subjectsStudied).size : 0,
     quizzes: quizSnap.size,
     perfect,
-    homework,
   }
 }
 
@@ -133,6 +117,7 @@ export default function ProgressPage() {
   const router = useRouter()
   const [stats, setStats] = useState<Stats>(EMPTY)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -142,8 +127,10 @@ export default function ProgressPage() {
       }
       try {
         setStats(await loadStats(user.uid))
+        setLoadError(false)
       } catch (err) {
         console.error("Failed to load progress:", err)
+        setLoadError(true)
       } finally {
         setLoading(false)
       }
@@ -152,6 +139,7 @@ export default function ProgressPage() {
   }, [router])
 
   if (loading) return <LoadingState full text="Loading your progress…" />
+  if (loadError) return <div className="card p-6" role="alert">We could not load your progress. <button type="button" className="link-inline" onClick={() => window.location.reload()}>Try again</button>.</div>
 
   const accuracy = stats.attempted > 0 ? Math.round((stats.correct / stats.attempted) * 100) : 0
   const earned = BADGES.filter(
@@ -208,7 +196,7 @@ export default function ProgressPage() {
 
           <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-hairline pt-4">
             {[
-              { label: "Quizzes", value: stats.quizzes },
+              { label: "Quizzes and mocks", value: stats.quizzes },
               { label: "Perfect", value: stats.perfect },
               { label: "Subjects", value: stats.subjects },
             ].map((cell) => (

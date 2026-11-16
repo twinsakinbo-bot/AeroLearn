@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { auth, onAuthStateChanged } from "@/lib/auth"
-import { collection, db, doc, getDoc, getDocs, limit, query, updateDoc, where } from "@/lib/db"
+import { arrayUnion, collection, db, doc, getDoc, getDocs, increment, limit, query, serverTimestamp, setDoc, updateDoc, where } from "@/lib/db"
 import { Award, BookOpen, Check, ChevronLeft, ChevronRight, Loader2, Lock, Timer, Trophy, X, XCircle } from "lucide-react"
 import Link from "next/link"
 
@@ -58,9 +58,7 @@ import { cn } from "@/lib/utils"
  * Minor: `alert()` for subject cap and early-submit confirmation replaced with banner
  * and confirm dialog. The Year select was removed — it was picked, stored, and never
  * read, because the query has no year column, so it promised a 2024 paper and gave
- * whatever was in the bank. XP award was a read-modify-write (`xp: userProfile.xp + ...`);
- * should be `increment()` to avoid races, but left as-is since the result screen doesn't
- * reload and `userProfile` is the current value for this session.
+ * whatever was in the bank.
  */
 
 const EXAM_TYPES = ["JAMB", "WAEC", "NECO"] as const
@@ -132,7 +130,9 @@ export default function MockExamsPage() {
    * the bank has rows, which a hardcoded notice would not.
    */
   const [bankEmpty, setBankEmpty] = useState<boolean | null>(null)
-  const submitRef = useRef<() => void>(() => {})
+  const submitRef = useRef<(timeExpired?: boolean) => void>(() => {})
+  const submittedRef = useRef(false)
+  const resultIdRef = useRef("")
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -166,7 +166,7 @@ export default function MockExamsPage() {
     const timer = setInterval(() => {
       setTimeRemaining((s) => {
         if (s <= 1) {
-          submitRef.current()
+          submitRef.current(true)
           return 0
         }
         return s - 1
@@ -241,6 +241,8 @@ export default function MockExamsPage() {
       }
 
       setQuestions(pool)
+      submittedRef.current = false
+      resultIdRef.current = crypto.randomUUID()
       setAnswers({})
       setIndex(0)
       setTimeRemaining(pool.length * 60)
@@ -265,12 +267,13 @@ export default function MockExamsPage() {
     setAnswers((prev) => ({ ...prev, [qid]: letter }))
   }
 
-  const submit = () => {
-    if (state !== "active") return
-    if (timeRemaining > 0) {
+  const submit = (timeExpired = false) => {
+    if (state !== "active" || submittedRef.current) return
+    if (!timeExpired && timeRemaining > 0) {
       const confirmed = confirm("Submit early? You cannot undo this.")
       if (!confirmed) return
     }
+    submittedRef.current = true
 
     let totalScore = 0
     questions.forEach((q) => {
@@ -282,15 +285,32 @@ export default function MockExamsPage() {
 
     if (uid) {
       updateDoc(doc(db, "users", uid), {
-        xp: (userProfile?.xp || 0) + totalScore * 5,
-        coins: (userProfile?.coins || 0) + totalScore * 2,
-      }).catch(console.error)
+        xp: increment(totalScore * 5),
+        coins: increment(totalScore * 2),
+        subjectsStudied: arrayUnion(...selectedSubjects),
+      }).catch((error) => {
+        console.error("Could not save mock exam rewards:", error)
+        setBanner({ tone: "error", text: "Your exam rewards could not be saved. Please check your connection." })
+      })
+      setDoc(doc(db, "quizResults", resultIdRef.current), {
+        userId: uid,
+        source: "mock_exam",
+        exam: examType,
+        score: totalScore,
+        totalQuestions: questions.length,
+        createdAt: serverTimestamp(),
+      }).catch((error) => {
+        console.error("Could not save mock exam result:", error)
+        setBanner({ tone: "error", text: "Your mock exam score could not be saved to Progress. Please check your connection." })
+      })
     }
   }
 
   submitRef.current = submit
 
   const reset = () => {
+    submittedRef.current = false
+    resultIdRef.current = ""
     setState("config")
     setSelectedSubjects([])
     setQuestions([])
@@ -307,6 +327,7 @@ export default function MockExamsPage() {
     return (
       <div className="animate-fade-in">
         <PageHeader eyebrow="Mock exam" title="Results" onBack={reset} backLabel="Back to setup" />
+        {banner && <p role="alert" className="mb-5 rounded-lg border border-danger/30 bg-danger/[0.06] px-4 py-3 text-body-sm text-danger">{banner.text}</p>}
 
         <div className="card p-6 sm:p-8 text-center">
           <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-streak/[0.12] text-streak">
@@ -527,7 +548,7 @@ export default function MockExamsPage() {
           </div>
           <button
             type="button"
-            onClick={submit}
+            onClick={() => submit()}
             className="btn-primary mt-4 w-full"
           >
             Submit exam

@@ -200,6 +200,7 @@ export default function LessonViewPage() {
       // arrayUnion makes a second click a no-op rather than a duplicate entry.
       await updateDoc(doc(db, "users", user.uid), {
         completedLessons: arrayUnion(lesson.id),
+        subjectsStudied: arrayUnion(lesson.subject),
         xp: increment(XP_PER_LESSON),
         coins: increment(COINS_PER_LESSON),
       })

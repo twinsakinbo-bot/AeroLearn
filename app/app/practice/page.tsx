@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { auth, onAuthStateChanged } from "@/lib/auth"
-import { db, doc, getDoc, increment, updateDoc } from "@/lib/db"
+import { arrayUnion, db, doc, getDoc, increment, serverTimestamp, setDoc, updateDoc } from "@/lib/db"
 import { Check, ChevronRight, Loader2, Trophy, X, Zap } from "lucide-react"
 
 import { EmptyState } from "@/components/ui/empty-state"
@@ -62,6 +62,7 @@ const QUESTION_COUNTS = [5, 10, 15, 20] as const
 const DIFFICULTIES = ["Easy", "Medium", "Hard", "Exam standard"] as const
 
 type Quiz = {
+  id: string
   subject: Subject
   exam: string
   difficulty: string
@@ -123,6 +124,7 @@ export default function PracticePage() {
   const [marked, setMarked] = useState(false)
   const [score, setScore] = useState(0)
   const [done, setDone] = useState(false)
+  const [savingResult, setSavingResult] = useState(false)
 
   const [seconds, setSeconds] = useState(0)
   const [running, setRunning] = useState(false)
@@ -203,12 +205,13 @@ export default function PracticePage() {
       )
       if (pool.length === 0) throw new Error("None of the questions were usable.")
 
-      setQuiz({ subject, exam, difficulty, questions: pool })
+      setQuiz({ id: crypto.randomUUID(), subject, exam, difficulty, questions: pool })
       setIndex(0)
       setAnswer(null)
       setMarked(false)
       setScore(0)
       setDone(false)
+      setSavingResult(false)
       setSeconds(0)
       setRunning(true)
       tickRef.current += 1
@@ -247,6 +250,7 @@ export default function PracticePage() {
           coins: increment(right ? 5 : 0),
           totalQuestionsAnswered: increment(1),
           ...(right ? { totalQuestionsCorrect: increment(1) } : {}),
+          subjectsStudied: arrayUnion(quiz.subject),
         })
       } catch (error) {
         console.error("Failed to record your answer:", error)
@@ -254,8 +258,24 @@ export default function PracticePage() {
     } else {
       const next = index + 1
       if (next >= quiz.questions.length) {
-        setDone(true)
         setRunning(false)
+        setSavingResult(true)
+        try {
+          await setDoc(doc(db, "quizResults", quiz.id), {
+            userId: uid,
+            subject: quiz.subject,
+            source: "practice",
+            score,
+            totalQuestions: quiz.questions.length,
+            createdAt: serverTimestamp(),
+          })
+        } catch (error) {
+          console.error("Could not save quiz result:", error)
+          setBanner({ tone: "error", text: "Your quiz score could not be saved to Progress. Check your connection before starting another quiz." })
+        } finally {
+          setSavingResult(false)
+          setDone(true)
+        }
       } else {
         setIndex(next)
         setAnswer(null)
@@ -272,6 +292,7 @@ export default function PracticePage() {
     setMarked(false)
     setScore(0)
     setDone(false)
+    setSavingResult(false)
     setSeconds(0)
     setRunning(false)
     setBanner(null)
@@ -337,6 +358,8 @@ export default function PracticePage() {
           onBack={reset}
           backLabel="Back to setup"
         />
+
+        {banner && <p role="alert" className="mb-5 rounded-lg border border-danger/30 bg-danger/[0.06] px-4 py-3 text-body-sm text-danger">{banner.text}</p>}
 
         <div className="card p-6 sm:p-8 text-center">
           <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-streak/[0.12] text-streak">
@@ -447,7 +470,7 @@ export default function PracticePage() {
           <button
             type="button"
             onClick={check}
-            disabled={!answer && !marked}
+            disabled={savingResult || (!answer && !marked)}
             className={cn(
               "btn-primary w-full sm:w-auto",
               marked &&
@@ -459,7 +482,7 @@ export default function PracticePage() {
             {marked ? (
               <>
                 <ChevronRight size={16} aria-hidden="true" />
-                {index + 1 < quiz.questions.length ? "Next question" : "Finish"}
+                {savingResult ? "Saving score…" : index + 1 < quiz.questions.length ? "Next question" : "Finish"}
               </>
             ) : (
               "Check answer"

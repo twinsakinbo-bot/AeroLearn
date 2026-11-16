@@ -141,7 +141,6 @@ export const BADGES = [
   { id: "xp_100", name: "Century", description: "Earn 100 XP", icon: "💯", requirement: { type: "total_xp", value: 100 } },
   { id: "streak_7", name: "Week Warrior", description: "Maintain a 7-day streak", icon: "🔥", requirement: { type: "streak", value: 7 } },
   { id: "questions_50", name: "Question Master", description: "Answer 50 questions", icon: "🏅", requirement: { type: "questions_answered", value: 50 } },
-  { id: "homework_hero", name: "Homework Hero", description: "Complete 5 homework assignments", icon: "📋", requirement: { type: "homework_completed", value: 5 } },
   { id: "subject_explorer", name: "Subject Explorer", description: "Study 3 different subjects", icon: "🗺️", requirement: { type: "subjects_studied", value: 3 } },
   { id: "perfect_quiz", name: "Perfect Score", description: "Get 100% on a quiz", icon: "🌟", requirement: { type: "perfect_quizzes", value: 1 } },
 ] as const
