@@ -27,7 +27,12 @@ export function verifyUnsubscribeToken(token: string, email: string): string | n
 }
 
 export function unsubscribeUrl(uid: string, email: string): string {
-  return siteUrl(`/api/email/unsubscribe?token=${encodeURIComponent(unsubscribeToken(uid, email))}`)
+  const url = new URL(siteUrl("/api/email/unsubscribe"))
+  // The bare domain redirects to www in production. Mailbox one-click POSTs
+  // should reach the endpoint directly instead of depending on a redirect.
+  if (url.hostname === "aerolearn.name.ng") url.hostname = "www.aerolearn.name.ng"
+  url.searchParams.set("token", unsubscribeToken(uid, email))
+  return url.toString()
 }
 
 export function unsubscribeHeaders(url: string): Record<string, string> {

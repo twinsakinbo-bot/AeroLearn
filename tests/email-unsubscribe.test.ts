@@ -22,7 +22,7 @@ test("unsubscribe token belongs to one account and email address", () => {
 test("study emails include a direct link and one-click mailbox headers", () => {
   process.env.EMAIL_UNSUBSCRIBE_SECRET = "test-only-signing-key"
   const url = unsubscribeUrl(uid, "student@example.com")
-  assert.match(url, /^https:\/\/aerolearn\.name\.ng\/api\/email\/unsubscribe\?token=/)
+  assert.match(url, /^https:\/\/www\.aerolearn\.name\.ng\/api\/email\/unsubscribe\?token=/)
   assert.deepEqual(unsubscribeHeaders(url), {
     "List-Unsubscribe": `<${url}>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
