@@ -7,6 +7,7 @@ import {
   Trophy,
   FileDown,
   ShoppingBag,
+  Calculator,
   MessageSquare,
   TrendingUp,
   Users,
@@ -39,6 +40,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { label: "Learn", href: "/app/learn", icon: BookOpen },
       { label: "Practice", href: "/app/practice", icon: PenLine },
+      { label: "Calculator", href: "/app/calculator", icon: Calculator },
       { label: "Mock Exams", href: "/app/mock-exams", icon: Timer },
       { label: "Timetable", href: "/app/timetable", icon: Calendar },
       { label: "Downloads", href: "/app/downloads", icon: FileDown },

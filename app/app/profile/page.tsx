@@ -39,7 +39,7 @@ import { LoadingState } from "@/components/ui/loading-state"
 import { PageHeader } from "@/components/ui/page-header"
 import { StatCard } from "@/components/ui/stat-card"
 import { JSS_SUBJECTS, SS_SUBJECTS_BY_DEPARTMENT, type Department } from "@/lib/constants"
-import { titleLabel } from "@/lib/store-items"
+import { frameClass, titleLabel } from "@/lib/store-items"
 import { cn } from "@/lib/utils"
 import { isProUser } from "@/lib/subscription"
 import { planName } from "@/lib/plans"
@@ -411,7 +411,7 @@ export default function ProfilePage() {
 
       <section className="card flex flex-col items-center gap-5 p-6 text-center sm:flex-row sm:p-8 sm:text-left">
         <div className="relative shrink-0">
-          <span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-hairline bg-surface-sunken text-subtle">
+          <span className={cn("flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-surface-sunken text-subtle", frameClass(profile?.equippedFrame))}>
             {uploading ? (
               <Loader2 size={24} className="animate-spin text-accent" aria-hidden="true" />
             ) : photoURL ? (

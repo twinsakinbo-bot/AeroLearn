@@ -34,7 +34,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { LoadingState } from "@/components/ui/loading-state"
 import { PageHeader } from "@/components/ui/page-header"
 import { Tabs } from "@/components/ui/tabs"
-import { titleLabel } from "@/lib/store-items"
+import { frameClass, titleLabel } from "@/lib/store-items"
 import { cn } from "@/lib/utils"
 
 /**
@@ -125,13 +125,10 @@ function initialsOf(name: string) {
     .slice(0, 2)
 }
 
-/** The gold frame from the store is the only thing that changes an avatar. */
+/** The equipped store frame appears wherever a learner is ranked. */
 function Avatar({ person, size = "md" }: { person: Person; size?: "sm" | "md" }) {
   const dimension = size === "sm" ? "h-9 w-9 text-caption" : "h-11 w-11 text-body-sm"
-  const edge =
-    person.equippedFrame === "gold_frame"
-      ? "ring-2 ring-coin ring-offset-2 ring-offset-surface"
-      : "border border-hairline"
+  const edge = frameClass(person.equippedFrame)
 
   if (person.photoURL) {
     return (

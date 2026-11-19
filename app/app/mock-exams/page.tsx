@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { auth, onAuthStateChanged } from "@/lib/auth"
 import { arrayUnion, collection, db, doc, getDoc, getDocs, increment, limit, query, serverTimestamp, setDoc, updateDoc, where } from "@/lib/db"
-import { Award, BookOpen, Check, ChevronLeft, ChevronRight, Loader2, Lock, Timer, Trophy, X, XCircle } from "lucide-react"
+import { Award, BookOpen, Calculator, Check, ChevronLeft, ChevronRight, Loader2, Lock, Timer, Trophy, X, XCircle } from "lucide-react"
 import Link from "next/link"
 
 import { LibraryPendingNotice } from "@/components/ui/availability"
 import { EmptyState } from "@/components/ui/empty-state"
 import { LoadingState } from "@/components/ui/loading-state"
 import { PageHeader } from "@/components/ui/page-header"
+import { CalculatorPanel } from "@/components/calculator/calculator-panel"
 import { SUBJECTS } from "@/lib/constants"
 import {
   correctLetterOf,
@@ -111,6 +112,7 @@ export default function MockExamsPage() {
   const [state, setState] = useState<ExamState>("config")
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
   const [examType, setExamType] = useState("JAMB")
+  const [showCalculator, setShowCalculator] = useState(false)
 
   const [questions, setQuestions] = useState<StoredQuestion[]>([])
   const [index, setIndex] = useState(0)
@@ -281,6 +283,7 @@ export default function MockExamsPage() {
       if (correct && q.id && answers[q.id] === correct) totalScore += 1
     })
     setScore(totalScore)
+    setShowCalculator(false)
     setState("results")
 
     if (uid) {
@@ -309,6 +312,7 @@ export default function MockExamsPage() {
   submitRef.current = submit
 
   const reset = () => {
+    setShowCalculator(false)
     submittedRef.current = false
     resultIdRef.current = ""
     setState("config")
@@ -457,6 +461,7 @@ export default function MockExamsPage() {
             />
           </div>
 
+          <button type="button" onClick={() => setShowCalculator(true)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hairline bg-surface text-accent" aria-label="Open practice calculator" title="Open practice calculator"><Calculator size={18} aria-hidden="true" /></button>
           <span
             className={cn(
               "shrink-0 rounded-lg border px-3 py-1.5 text-caption font-semibold tabular-nums",
@@ -471,6 +476,14 @@ export default function MockExamsPage() {
           </span>
         </header>
 
+        {showCalculator && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCalculator(false) }}>
+            <div role="dialog" aria-modal="true" aria-label="Practice calculator" className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
+              <div className="mb-2 flex justify-end"><button type="button" onClick={() => setShowCalculator(false)} className="rounded-full bg-surface p-2 text-foreground" aria-label="Close calculator"><X size={18} /></button></div>
+              <CalculatorPanel mode={examType === "JAMB" ? "basic" : "scientific"} />
+            </div>
+          </div>
+        )}
         <div className="mx-auto max-w-5xl">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/[0.06] px-3 py-1.5 text-caption font-semibold text-accent">
