@@ -25,9 +25,8 @@ export function Overview({
     update((current) => {
       const seeded = awardStudy(current, { xp: 20, points: 10, coins: 5 })
       return {
-        ...seeded,
+        ...lesson.topics.reduce((acc, topic) => easeWeakTopic(acc, lesson.subject, topic), seeded),
         completedLessons: [...current.completedLessons, id],
-        ...(lesson.topics.reduce((acc, topic) => easeWeakTopic(acc, lesson.subject, topic), seeded)),
       }
     }, "Lesson opened")
   }
