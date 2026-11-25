@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/auth/login?error=Sign-in%20was%20cancelled.", url.origin))
   }
 
-  const supabase = getSupabaseServer()
+  const supabase = await getSupabaseServer()
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
   if (error) {
     return NextResponse.redirect(

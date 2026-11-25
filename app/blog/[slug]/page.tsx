@@ -8,14 +8,14 @@ import { Container } from "@/components/ui/container"
 
 import { POSTS, getPost } from "../posts"
 
-type Params = { params: { slug: string } }
+type Params = { params: Promise<{ slug: string }> }
 
 export function generateStaticParams() {
   return POSTS.map((post) => ({ slug: post.slug }))
 }
 
-export function generateMetadata({ params }: Params): Metadata {
-  const post = getPost(params.slug)
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const post = getPost((await params).slug)
   if (!post) return { title: "Post not found" }
 
   return {
@@ -32,8 +32,8 @@ export function generateMetadata({ params }: Params): Metadata {
   }
 }
 
-export default function BlogPostPage({ params }: Params) {
-  const post = getPost(params.slug)
+export default async function BlogPostPage({ params }: Params) {
+  const post = getPost((await params).slug)
   if (!post) notFound()
 
   const others = POSTS.filter((item) => item.slug !== post.slug).slice(0, 2)

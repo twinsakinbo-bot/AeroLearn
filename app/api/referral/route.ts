@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = getSupabaseServer()
+    const supabase = await getSupabaseServer()
     const {
       data: { user },
     } = await supabase.auth.getUser()

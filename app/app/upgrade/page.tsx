@@ -234,6 +234,11 @@ export default function UpgradePage() {
       setFile(null)
       return
     }
+    if (!["image/png", "image/jpeg", "image/webp", "application/pdf"].includes(selected.type)) {
+      setError("Choose a PNG, JPG, WebP or PDF receipt.")
+      setFile(null)
+      return
+    }
     setError("")
     setFile(selected)
   }
@@ -302,7 +307,7 @@ export default function UpgradePage() {
     setError("")
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
-      const path = `receipts/${user.uid}/${Date.now()}-${safeName}`
+      const path = `receipts/${user.uid}/${crypto.randomUUID()}-${safeName}`
       const target = ref(storage, path)
       await uploadBytes(target, file, { contentType: file.type || "application/octet-stream" })
       const receiptUrl = await getDownloadURL(target)
@@ -621,7 +626,7 @@ export default function UpgradePage() {
             <input
               id="receipt"
               type="file"
-              accept="image/*,application/pdf"
+              accept="image/png,image/jpeg,image/webp,application/pdf"
               onChange={chooseFile}
               className="sr-only"
             />

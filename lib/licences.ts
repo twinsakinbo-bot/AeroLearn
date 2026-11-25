@@ -177,7 +177,7 @@ export type RedeemFailure =
  * to the reseller with no proof. The alphabet size makes guessing an unused code
  * impractical regardless, so the enumeration value is near zero.
  */
-export async function redeemLicenceCode(rawCode: string, uid: string): Promise<RedeemResult> {
+export async function redeemLicenceCode(rawCode: string, uid: string, accessToken: string): Promise<RedeemResult> {
   if (!looksLikeCode(rawCode)) {
     return {
       ok: false,
@@ -186,8 +186,10 @@ export async function redeemLicenceCode(rawCode: string, uid: string): Promise<R
     }
   }
 
-  const { getSupabaseAdmin, isSupabaseAdminConfigured } = await import("@/lib/supabase/admin")
-  if (!isSupabaseAdminConfigured()) {
+  const { createClient } = await import("@supabase/supabase-js")
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anonKey) {
     return {
       ok: false,
       reason: "storage",
@@ -195,7 +197,12 @@ export async function redeemLicenceCode(rawCode: string, uid: string): Promise<R
     }
   }
 
-  const supabase = getSupabaseAdmin()
+  // The SQL function checks auth.uid() against p_uid. A service-role RPC has
+  // no end-user identity and must never be used for redemption.
+  const supabase = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  })
   const key = normalizeCode(rawCode)
 
   const { data, error } = await supabase.rpc("redeem_licence_code", {

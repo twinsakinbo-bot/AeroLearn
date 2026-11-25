@@ -50,7 +50,7 @@ export async function uploadBytes(
     .storage.from(target.bucket)
     .upload(target.path, data, {
       contentType: metadata.contentType || "application/octet-stream",
-      upsert: true,
+      upsert: false,
     })
 
   if (error) throw new Error(`Could not upload ${target.name}: ${error.message}`)

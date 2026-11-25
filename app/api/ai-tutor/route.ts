@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server'
 import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "@/lib/ai-provider"
 
 import { requireUser } from '@/lib/api-auth'
+import { enforceAiRateLimit } from '@/lib/ai-rate-limit'
 
 // Initialize Groq API
 const apiKey = aiKey
@@ -21,6 +22,8 @@ const cap = (value: unknown, limit: number) => String(value ?? "").slice(0, limi
 export async function POST(req: Request) {
   const gate = await requireUser(req)
   if (!gate.ok) return gate.response
+  const limited = await enforceAiRateLimit(gate.uid)
+  if (limited) return limited
 
   try {
     const { question, selectedAnswer, correctAnswer, options, subject } = await req.json()

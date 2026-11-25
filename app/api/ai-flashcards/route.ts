@@ -18,6 +18,8 @@ import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "
 
 import { parseAiRows } from "@/lib/ai-json"
 import { requireUser } from "@/lib/api-auth"
+import { enforceAiRateLimit } from "@/lib/ai-rate-limit"
+import { freeGenerationGate } from "@/lib/ai-quota"
 import { clientIp, rateLimit } from "@/lib/rate-limit"
 
 const MAX_CONTENT_CHARS = 15_000
@@ -103,6 +105,8 @@ async function ask(prompt: string, jsonMode: boolean): Promise<string> {
 export async function POST(req: Request) {
   const gate = await requireUser(req)
   if (!gate.ok) return gate.response
+  const limited = await enforceAiRateLimit(gate.uid)
+  if (limited) return limited
 
   const limit = rateLimit("ai-flashcards", clientIp(req), { max: 12, windowMs: 60_000 })
   if (!limit.ok) {
@@ -129,6 +133,8 @@ export async function POST(req: Request) {
     if (content.length > MAX_CONTENT_CHARS) {
       return NextResponse.json({ error: "That lesson is too long to summarise." }, { status: 413 })
     }
+    const quota = await freeGenerationGate(gate.uid, "flashcards")
+    if (quota) return quota
 
     const prompt = buildPrompt(content)
     let flashcards: Flashcard[] = []
@@ -160,6 +166,8 @@ export async function POST(req: Request) {
       )
     }
 
+    const consumed = await freeGenerationGate(gate.uid, "flashcards", true)
+    if (consumed) return consumed
     return NextResponse.json({ flashcards })
   } catch (error) {
     console.error("AI Flashcards Error:", error)

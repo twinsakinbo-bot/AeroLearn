@@ -1,13 +1,25 @@
 /** @type {import('next').NextConfig} */
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
-  cacheOnFrontEndNav: true,
-  aggressiveFrontEndNavCaching: true,
+  cacheOnFrontEndNav: false,
+  aggressiveFrontEndNavCaching: false,
+  cacheStartUrl: false,
+  dynamicStartUrl: false,
   reloadOnOnline: true,
   swcMinify: true,
   disable: process.env.NODE_ENV === "development",
   workboxOptions: {
     disableDevLogs: true,
+    // Only fingerprinted assets are safe to retain across users of a device.
+    // Never store pages, RSC payloads, API data or authentication responses.
+    runtimeCaching: [
+      {
+        urlPattern: ({ url }) => url.origin === self.location.origin &&
+          url.pathname.startsWith("/_next/static/"),
+        handler: "CacheFirst",
+        options: { cacheName: "aerolearn-static-v2", expiration: { maxEntries: 80, maxAgeSeconds: 7 * 24 * 60 * 60 } },
+      },
+    ],
   },
 });
 
@@ -28,6 +40,21 @@ const MAINTENANCE_GATED = ["/app", "/app/:path*", "/admin", "/admin/:path*"];
 
 const nextConfig = {
   reactStrictMode: true,
+  async headers() {
+    const security = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+    ];
+    return [
+      { source: "/:path*", headers: security },
+      { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }] },
+      { source: "/app/:path*", headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }] },
+      { source: "/admin/:path*", headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }] },
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] },
+    ];
+  },
   images: {
     domains: ['lh3.googleusercontent.com'],
   },

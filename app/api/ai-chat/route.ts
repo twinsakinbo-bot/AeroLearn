@@ -25,6 +25,7 @@ import { NextResponse } from "next/server"
 import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "@/lib/ai-provider"
 
 import { requireUser } from "@/lib/api-auth"
+import { enforceAiRateLimit } from "@/lib/ai-rate-limit"
 import { FetchRefused, safeFetch } from "@/lib/safe-fetch"
 import { referenceQuery, UNCERTAIN_REPLY } from "@/lib/ai-tutor-reference"
 import { searchWikipedia } from "@/lib/web-search"
@@ -56,6 +57,8 @@ function webUrlOrNull(raw: unknown): string | null {
 export async function POST(req: Request) {
   const gate = await requireUser(req)
   if (!gate.ok) return gate.response
+  const limited = await enforceAiRateLimit(gate.uid)
+  if (limited) return limited
 
   try {
     if (!apiKey) {
@@ -84,7 +87,7 @@ export async function POST(req: Request) {
       let transcribedText: string
       try {
         const audio = await safeFetch(mediaUrl, { maxBytes: MAX_AUDIO_BYTES, timeoutMs: 10000 })
-        const file = new File([audio.bytes], "audio.webm", { type: "audio/webm" })
+        const file = new File([new Uint8Array(audio.bytes)], "audio.webm", { type: "audio/webm" })
         transcribedText = await transcribeAudio(file)
       } catch (error) {
         if (error instanceof FetchRefused) {

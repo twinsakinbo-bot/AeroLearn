@@ -157,7 +157,7 @@ function Avatar({ person, size = "md" }: { person: Person; size?: "sm" | "md" })
 
 /** Several profiles at once, rather than one per `await`. */
 async function fetchPeople(ids: string[]): Promise<Person[]> {
-  const snaps = await Promise.all(ids.map((id) => getDoc(doc(db, "users", id))))
+  const snaps = await Promise.all(ids.map((id) => getDoc(doc(db, "publicProfiles", id))))
   return snaps
     .filter((snap) => snap.exists())
     .map((snap) => toPerson(snap.id, snap.data() as DocumentData))
@@ -193,7 +193,7 @@ async function searchByName(term: string): Promise<Person[]> {
     casings(term).map((prefix) =>
       getDocs(
         query(
-          collection(db, "users"),
+          collection(db, "publicProfiles"),
           where("displayName", ">=", prefix),
           orderBy("displayName", "asc"),
           limit(SEARCH_LIMIT),
@@ -280,9 +280,9 @@ export default function CommunityPage() {
         fetchPeople(data.friendRequests ?? []),
         fetchPeople(data.friends ?? []),
         data.schoolName
-          ? getDocs(query(collection(db, "users"), where("schoolName", "==", data.schoolName)))
+          ? getDocs(query(collection(db, "publicProfiles"), where("schoolName", "==", data.schoolName)))
           : null,
-        getDocs(query(collection(db, "users"), orderBy("xp", "desc"), limit(GLOBAL_COUNT))),
+        getDocs(query(collection(db, "publicProfiles"), orderBy("xp", "desc"), limit(GLOBAL_COUNT))),
       ])
 
       setRequests(requestPeople)
@@ -341,7 +341,7 @@ export default function CommunityPage() {
       const [byName, schoolSnap] = await Promise.all([
         searchByName(wanted),
         schoolName
-          ? getDocs(query(collection(db, "users"), where("schoolName", "==", schoolName)))
+          ? getDocs(query(collection(db, "publicProfiles"), where("schoolName", "==", schoolName)))
           : null,
       ])
 

@@ -37,6 +37,8 @@ import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "
 
 import { parseAiRows } from "@/lib/ai-json"
 import { requireUser } from "@/lib/api-auth"
+import { enforceAiRateLimit } from "@/lib/ai-rate-limit"
+import { freeGenerationGate } from "@/lib/ai-quota"
 import { CLASS_LEVELS } from "@/lib/constants"
 import { correctLetterOf, optionsOf, questionText, type StoredQuestion } from "@/lib/questions"
 import { clientIp, rateLimit } from "@/lib/rate-limit"
@@ -165,6 +167,8 @@ async function ask(prompt: string, maxTokens: number, jsonMode: boolean): Promis
 export async function POST(req: Request) {
   const gate = await requireUser(req)
   if (!gate.ok) return gate.response
+  const limited = await enforceAiRateLimit(gate.uid)
+  if (limited) return limited
 
   /* The key is paid for by the account, not by the caller. */
   const limit = rateLimit("ai-quiz", clientIp(req), { max: 15, windowMs: 60_000 })
@@ -191,6 +195,8 @@ export async function POST(req: Request) {
     if (!subject) {
       return NextResponse.json({ error: "Pick a subject first." }, { status: 400 })
     }
+    const quota = await freeGenerationGate(gate.uid, "practice")
+    if (quota) return quota
 
     /* Anything that is not a real class level is dropped — see the note above. */
     const requested = cap(body?.classLevel, 20)
@@ -236,6 +242,8 @@ export async function POST(req: Request) {
       )
     }
 
+    const consumed = await freeGenerationGate(gate.uid, "practice", true)
+    if (consumed) return consumed
     return NextResponse.json({ questions })
   } catch (error) {
     console.error("AI Quiz Error:", error)

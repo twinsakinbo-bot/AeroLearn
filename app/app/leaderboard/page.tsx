@@ -157,7 +157,7 @@ export default function LeaderboardPage() {
       setUid(user?.uid ?? null)
       try {
         const snap = await getDocs(
-          query(collection(db, "users"), orderBy("xp", "desc"), limit(TOP_COUNT)),
+          query(collection(db, "publicProfiles"), orderBy("xp", "desc"), limit(TOP_COUNT)),
         )
         const ranked: Entry[] = snap.docs.map((d) => {
           const data = d.data()

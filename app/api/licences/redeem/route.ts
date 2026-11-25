@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 
   let result: RedeemResult
   try {
-    result = await redeemLicenceCode(normalizeCode(raw), gate.uid)
+    result = await redeemLicenceCode(normalizeCode(raw), gate.uid, request.headers.get("authorization")!.replace(/^Bearer\s+/i, "").trim())
   } catch (error) {
     // Never echo a database message to a student mid-payment — it can name a
     // table or a function, and the useful part ("try again") is the same either

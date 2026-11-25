@@ -22,6 +22,7 @@
 /** The 13 collections the app actually uses, plus the one subcollection. */
 const TABLES = new Set([
   "users",
+  "public_profiles",
   "lessons",
   "practice_questions",
   "conversations",

@@ -3,6 +3,7 @@ import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "
 
 import { getAdminAuth, getAdminDb } from "@/lib/db-admin"
 import { isProUser } from "@/lib/plan-access"
+import { enforceAiRateLimit } from "@/lib/ai-rate-limit"
 
 /**
  * Grades a photographed handwritten answer with a vision model.
@@ -41,6 +42,8 @@ export async function POST(req: Request) {
         { status: 403 },
       )
     }
+    const limited = await enforceAiRateLimit(uid)
+    if (limited) return limited
 
     if (!apiKey) {
       return NextResponse.json(

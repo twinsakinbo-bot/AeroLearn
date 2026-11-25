@@ -12,6 +12,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:db": "psql \"$SUPABASE_TEST_DATABASE_URL\" -v ON_ERROR_STOP=1 -f tests/security-policies.sql",
+    "desktop:check": "npm --prefix desktop-app run build",
     "test:plans": "tsx --test tests/plan-flow.test.ts",
     "desktop:dev": "npx tauri dev",
     "desktop:build": "npm --prefix desktop-app run build && npx tauri build"
@@ -32,10 +36,10 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^1.31.0",
     "mammoth": "^1.8.0",
-    "next": "14.2.4",
+    "next": "15.5.29",
     "papaparse": "^5.4.1",
     "pdf-parse": "^1.1.1",
-    "postcss": "8.4.31",
+    "postcss": "8.5.33",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-joyride": "^3.2.0",
@@ -47,20 +51,20 @@
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "3.4.0",
     "three": "^0.185.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.20",
     "@tauri-apps/cli": "^2.11.4",
     "@types/canvas-confetti": "^1.9.0",
-    "@types/node": "20.14.2",
+    "@types/node": "20.19.37",
     "@types/papaparse": "^5.5.2",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "18.3.1",
     "@types/react-dom": "18.3.0",
     "eslint": "8.57.0",
-    "eslint-config-next": "14.2.4",
+    "eslint-config-next": "15.5.29",
     "tsx": "^4.20.6",
-    "typescript": "5.5.2"
+    "typescript": "5.9.3"
   }
 }

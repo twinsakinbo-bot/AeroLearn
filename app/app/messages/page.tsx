@@ -403,7 +403,7 @@ export default function MessagesPage() {
                   isOnline = true
                 } else if (otherId) {
                   try {
-                    const otherSnap = await getDoc(doc(db, "users", otherId))
+                    const otherSnap = await getDoc(doc(db, "publicProfiles", otherId))
                     if (otherSnap.exists()) {
                       const other = otherSnap.data()
                       displayPhoto = other.photoURL
@@ -493,7 +493,7 @@ export default function MessagesPage() {
     const rows = await Promise.all(
       missing.map(async (id) => {
         try {
-          const snap = await getDoc(doc(db, "users", id))
+          const snap = await getDoc(doc(db, "publicProfiles", id))
           if (!snap.exists()) return null
           const data = snap.data()
           return { id, displayName: data.displayName || "Student", photoURL: data.photoURL } as Person
@@ -857,7 +857,7 @@ export default function MessagesPage() {
     setSearching(true)
     try {
       const snap = await getDocs(
-        query(collection(db, "users"), where("schoolName", "==", profile?.schoolName || "")),
+        query(collection(db, "publicProfiles"), where("schoolName", "==", profile?.schoolName || "")),
       )
       const results: Person[] = []
       snap.forEach((d) => {
@@ -887,7 +887,7 @@ export default function MessagesPage() {
       candidates.map(async (id) => {
         if (userCache[id]) return userCache[id]
         try {
-          const snap = await getDoc(doc(db, "users", id))
+          const snap = await getDoc(doc(db, "publicProfiles", id))
           if (!snap.exists()) return null
           const data = snap.data()
           return { id, displayName: data.displayName || "Student", photoURL: data.photoURL } as Person

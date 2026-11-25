@@ -3,16 +3,12 @@
 import { useEffect, useRef, useState } from "react"
 import { auth, onAuthStateChanged } from "@/lib/auth"
 import {
-  addDoc,
   collection,
   db,
-  doc,
-  getDoc,
   getDocs,
   limit,
   orderBy,
   query,
-  serverTimestamp,
   where,
 } from "@/lib/db"
 import { Check, ChevronRight, Clock, Coins, ListChecks, Timer, Trophy, X } from "lucide-react"
@@ -148,12 +144,12 @@ async function requestWeeklyChallenges(idToken: string) {
 }
 
 export default function ChallengesPage() {
-  const [name, setName] = useState("")
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [taken, setTaken] = useState<Taken>({})
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
   const [error, setError] = useState("")
+  const [claimError, setClaimError] = useState("")
 
   const [active, setActive] = useState<Challenge | null>(null)
   const [questions, setQuestions] = useState<StoredQuestion[]>([])
@@ -167,6 +163,7 @@ export default function ChallengesPage() {
   /* The tally lives in a ref as well: the last answer is marked, then finished
      800ms later from a closure that would otherwise read a stale score. */
   const scoreRef = useRef(0)
+  const answersRef = useRef<Record<string, OptionLetter>>({})
   const startedAtRef = useRef(0)
   const finishedRef = useRef(false)
   const finishRef = useRef<() => void>(() => {})
@@ -178,14 +175,9 @@ export default function ChallengesPage() {
         return
       }
       try {
-        const [profileSnap, resultsSnap] = await Promise.all([
-          getDoc(doc(db, "users", user.uid)),
-          getDocs(
-            query(collection(db, "challengeResults"), where("userId", "==", user.uid), limit(200)),
-          ),
-        ])
-
-        if (profileSnap.exists()) setName(profileSnap.data().displayName || "")
+        const resultsSnap = await getDocs(
+          query(collection(db, "challengeResults"), where("userId", "==", user.uid), limit(200)),
+        )
 
         const mine: Taken = {}
         for (const entry of resultsSnap.docs) {
@@ -226,9 +218,9 @@ export default function ChallengesPage() {
         .map((entry) => ({ id: entry.id, ...entry.data() }) as StoredQuestion)
         .filter((question) => optionsOf(question).length >= 2 && correctLetterOf(question))
 
-      if (pool.length === 0) {
+      if (pool.length < challenge.questionCount) {
         setError(
-          `There are no ${challenge.subject} questions in the bank yet, so this one cannot run.`,
+          `There are not enough ${challenge.subject} questions in the bank yet, so this challenge cannot run.`,
         )
         return
       }
@@ -238,6 +230,8 @@ export default function ChallengesPage() {
       const picked = shuffled(pool).slice(0, Math.max(1, challenge.questionCount))
 
       scoreRef.current = 0
+      answersRef.current = {}
+      setClaimError("")
       startedAtRef.current = Date.now()
       finishedRef.current = false
 
@@ -265,34 +259,24 @@ export default function ChallengesPage() {
     const total = questions.length
     const score = scoreRef.current
     const timeTaken = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))
-    const coins = Math.round((score / Math.max(total, 1)) * (active.prize || 0))
-
-    setResult({ score, total, timeTaken, coins })
-
     const user = auth.currentUser
     if (!user) return
 
     try {
-      await addDoc(collection(db, "challengeResults"), {
-        challengeId: active.id,
-        userId: user.uid,
-        displayName: name || "Student",
-        score,
-        totalQuestions: total,
-        timeTaken,
-        coinsEarned: coins,
-        createdAt: serverTimestamp(),
+      const idToken = await user.getIdToken()
+      const response = await fetch("/api/gamification/add-coins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          challengeId: active.id,
+          answers: Object.fromEntries(questions.map((question) => [question.id!, answersRef.current[question.id!] ?? null])),
+          timeTaken,
+        }),
       })
-      setTaken((prev) => ({ ...prev, [active.id]: { score, total } }))
-
-      if (coins > 0) {
-        const idToken = await user.getIdToken()
-        await fetch("/api/gamification/add-coins", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ coins, reason: `Challenge: ${active.title}` }),
-        })
-      }
+      if (!response.ok) throw new Error("Challenge result could not be verified.")
+      const saved = await response.json() as Result
+      setResult(saved)
+      setTaken((prev) => ({ ...prev, [active.id]: { score: saved.score, total: saved.total } }))
 
       // One equality filter, ranked in memory: ordering by score and then by time
       // behind that filter would need a composite index.
@@ -306,6 +290,8 @@ export default function ChallengesPage() {
       setStandings(rows.slice(0, STANDINGS_SHOWN))
     } catch (err) {
       console.error("Failed to record your challenge:", err)
+      setClaimError("Your score could not be saved. Your wallet was not credited. Check your connection and try another challenge later.")
+      setResult({ score, total, timeTaken, coins: 0 })
     }
   }
 
@@ -325,6 +311,8 @@ export default function ChallengesPage() {
   const answer = (letter: OptionLetter) => {
     if (chosen) return
     setChosen(letter)
+    const questionId = questions[index]?.id
+    if (questionId) answersRef.current[questionId] = letter
     if (correctLetterOf(questions[index]) === letter) scoreRef.current += 1
 
     window.setTimeout(() => {
@@ -439,6 +427,7 @@ export default function ChallengesPage() {
           title="Challenge complete"
           subtitle={active.title}
         />
+        {claimError && <p role="alert" className="mb-5 rounded-lg border border-danger/35 bg-danger/10 px-4 py-3 text-body-sm text-danger">{claimError}</p>}
 
         <section className="card p-5 sm:p-6">
           <dl className="grid grid-cols-3 divide-x divide-hairline text-center">

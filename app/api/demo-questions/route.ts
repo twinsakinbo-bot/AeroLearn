@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = getSupabaseServer()
+    const supabase = await getSupabaseServer()
     
     // Fetch 10 random demo questions across popular subjects
     const { data: questions, error } = await supabase

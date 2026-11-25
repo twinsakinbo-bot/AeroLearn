@@ -1,0 +1,1 @@
+self.addEventListener("activate",e=>{let a=new Set(["start-url","apis","pages","pages-rsc","pages-rsc-prefetch","next-data","static-data-assets","cross-origin"]);e.waitUntil(caches.keys().then(e=>Promise.all(e.filter(e=>a.has(e)).map(e=>caches.delete(e)))))});

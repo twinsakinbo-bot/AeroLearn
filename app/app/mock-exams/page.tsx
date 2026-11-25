@@ -164,17 +164,13 @@ export default function MockExamsPage() {
 
   /* Timer always calls the latest submit function. */
   useEffect(() => {
-    if (state !== "active" || timeRemaining === 0) return
-    const timer = setInterval(() => {
-      setTimeRemaining((s) => {
-        if (s <= 1) {
-          submitRef.current(true)
-          return 0
-        }
-        return s - 1
-      })
-    }, 1000)
+    if (state !== "active") return
+    const timer = setInterval(() => setTimeRemaining((seconds) => Math.max(0, seconds - 1)), 1000)
     return () => clearInterval(timer)
+  }, [state])
+
+  useEffect(() => {
+    if (state === "active" && timeRemaining === 0) submitRef.current(true)
   }, [state, timeRemaining])
 
   const toggleSubject = (subject: string) => {
