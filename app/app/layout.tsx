@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { auth, onAuthStateChanged, signOut, type User } from "@/lib/auth"
 import { db, doc, type DocumentData, getDoc, setDoc } from "@/lib/db"
+import { needsLearningSetup } from "@/lib/onboarding"
 import {
   ChevronDown,
   Crown,
@@ -215,6 +216,7 @@ function rememberAccount(email: string | null, displayName: string, photoURL: st
 /** For an account that exists in Firebase Auth but has no profile document. */
 function blankProfile(email: string | null, displayName: string) {
   return {
+    role: "student",
     email: email || "",
     displayName,
     createdAt: new Date(),
@@ -243,6 +245,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<DocumentData | null>(null)
+  const [profileError, setProfileError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -293,6 +296,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           data = snap.data()
         }
         setUserProfile(data)
+        if (needsLearningSetup(data)) {
+          router.replace("/onboarding")
+          return
+        }
         try {
           const token = await firebaseUser.getIdToken()
           const response = await fetch("/api/gamification/login", { method: "POST", headers: { Authorization: `Bearer ${token}` } })
@@ -317,6 +324,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )
       } catch (err) {
         console.error("Failed to load user profile:", err)
+        setProfileError(true)
       } finally {
         setLoading(false)
       }
@@ -377,7 +385,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!user) return null
+  if (profileError) return (
+    <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+      <p>We couldn’t load your learning setup. Check your connection and try again.</p>
+      <button className="btn-primary" onClick={() => window.location.reload()}>Try again</button>
+    </div>
+  )
+  if (!user || !userProfile || needsLearningSetup(userProfile)) return null
 
   const displayName = userProfile?.displayName || user.email || "Student"
   const initials = displayName

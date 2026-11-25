@@ -4,7 +4,8 @@ type SignupFailure = { message: string; field: "email" | "password" | null }
 export function signupFailure(error: unknown): SignupFailure {
   const code = typeof error === "object" && error !== null && "code" in error
     ? String((error as { code?: unknown }).code || "").toLowerCase() : ""
-  const detail = error instanceof Error ? error.message.toLowerCase() : ""
+  const detail = typeof error === "object" && error !== null && "message" in error
+    ? String(error.message || "").toLowerCase() : ""
 
   if (code.includes("weak_password") || detail.includes("password should contain") || detail.includes("password is too weak")) {
     return { field: "password", message: "Use at least 6 characters with an uppercase letter, a lowercase letter, a number and a special character." }

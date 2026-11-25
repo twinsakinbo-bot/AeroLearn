@@ -31,6 +31,7 @@ import {
 } from "@/lib/constants"
 import { getSubjectLimit } from "@/lib/subscription"
 import { getSupabase } from "@/lib/supabase/client"
+import { needsLearningSetup } from "@/lib/onboarding"
 
 /**
  * Finishing setup for an account that never went through the sign-up wizard —
@@ -147,7 +148,7 @@ export default function OnboardingPage() {
         if (snap.exists()) {
           const data = snap.data()
           setUserProfile(data)
-          if (data.onboardingCompleted || data.classLevel) {
+          if (!needsLearningSetup(data)) {
             router.replace("/app")
             return
           }

@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server"
 
 import { getSupabaseServer } from "@/lib/supabase/server"
+import { needsLearningSetup } from "@/lib/onboarding"
 
 /** Only same-origin paths, so `?next=` cannot be used as an open redirect. */
 function safeNext(raw: string | null): string {
@@ -44,15 +45,14 @@ export async function GET(request: Request) {
   // still has to pick them. The profile row itself already exists — a trigger on
   // auth.users creates it — and it has no `onboardingCompleted` until the wizard
   // sets it, which is exactly the signal for "this account is new".
-  if (next === "/app" && data.user) {
+  if (data.user) {
     const { data: profile } = await supabase
       .from("users")
       .select("data")
       .eq("id", data.user.id)
       .maybeSingle()
 
-    const done = (profile?.data as { onboardingCompleted?: boolean } | undefined)?.onboardingCompleted
-    if (!done) return NextResponse.redirect(new URL("/onboarding", url.origin))
+    if (needsLearningSetup(profile?.data)) return NextResponse.redirect(new URL("/onboarding", url.origin))
   }
 
   return NextResponse.redirect(new URL(next, url.origin))

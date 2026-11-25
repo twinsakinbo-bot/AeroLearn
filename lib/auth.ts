@@ -163,7 +163,10 @@ export async function createUserWithEmailAndPassword(
     body: JSON.stringify({ email, password, fullName, setup }),
   })
   const result = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(result?.error || "Could not create your account.")
+  if (!response.ok) throw Object.assign(new Error(result?.error || "Could not create your account. Please try again."), {
+    field: result?.field,
+    status: response.status,
+  })
   return { confirmationSent: Boolean(result?.confirmationSent) }
 }
 

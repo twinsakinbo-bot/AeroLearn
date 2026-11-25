@@ -15,4 +15,6 @@ test("Supabase signup errors identify the field and useful next step", () => {
   })
   assert.equal(signupFailure(new Error('Email address "chat@test.com" is invalid')).field, "email")
   assert.match(signupFailure(new Error("User already registered")).message, /Sign in instead/)
+  assert.equal(signupFailure({ message: "Email address is invalid" }).field, "email")
+  assert.match(signupFailure({ code: "over_request_rate_limit" }).message, /Wait a few minutes/)
 })

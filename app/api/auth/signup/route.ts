@@ -7,6 +7,7 @@ import { getSubjectLimit } from "@/lib/subscription"
 import { getSupabaseAdmin } from "@/lib/supabase/admin"
 import { siteUrl } from "@/lib/site"
 import { sendVerificationEmail } from "@/lib/verification-email"
+import { signupFailure } from "@/lib/signup-errors"
 
 export async function POST(request: Request) {
   const throttle = rateLimit("email-signup", clientIp(request), { max: 5, windowMs: 15 * 60_000 })
@@ -59,6 +60,9 @@ export async function POST(request: Request) {
     if (error || !data.properties?.hashed_token) {
       const code = error?.code?.toLowerCase() ?? ""
       const detail = error?.message.toLowerCase() ?? ""
+      if (code.includes("rate_limit") || error?.status === 429 || detail.includes("rate limit")) {
+        return NextResponse.json({ error: signupFailure({ code: "rate_limit" }).message }, { status: 429, headers: { "Retry-After": "60" } })
+      }
       if (detail.includes("already") || detail.includes("registered") || detail.includes("exists")) {
         return NextResponse.json({ error: "An account already uses this email. Sign in instead, or reset your password.", field: "email" }, { status: 409 })
       }

@@ -251,7 +251,9 @@ export default function SignupPage() {
       setConfirmationSent(true)
     } catch (err) {
       setError(textOf(err) || "Could not create your account. Please try again.")
-      setStep("account")
+      const field = typeof err === "object" && err !== null && "field" in err ? err.field : null
+      if (field === "email" || field === "password" || field === "name") setStep("account")
+      else if (field === "setup") setStep("subjects")
     } finally {
       setSigningUp(false)
     }

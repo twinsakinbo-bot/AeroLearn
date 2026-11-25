@@ -17,11 +17,13 @@ import { db, doc, getDoc, setDoc } from "@/lib/db"
 import { ArrowRight, Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react"
 
 import { AuthDivider, AuthShell, GoogleMark } from "@/components/auth/auth-shell"
+import { needsLearningSetup } from "@/lib/onboarding"
 
 type SavedAccount = { email: string; displayName: string; photoURL?: string | null }
 
 /** Starting state for a profile created by a first Google sign-in. */
 const NEW_PROFILE = {
+  role: "student",
   favoriteSubjects: [],
   studyStats: { questionsAttempted: 0, questionsCorrect: 0, subjectsStudied: [] },
   subscription: "free",
@@ -50,7 +52,7 @@ async function ensureProfile(user: User) {
 
 async function needsOnboarding(uid: string) {
   const snap = await getDoc(doc(db, "users", uid))
-  return snap.exists() && !snap.data()?.onboardingCompleted
+  return needsLearningSetup(snap.exists() ? snap.data() : null)
 }
 
 function codeOf(err: unknown) {
