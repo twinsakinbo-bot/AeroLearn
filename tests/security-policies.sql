@@ -35,6 +35,11 @@ begin
       'public.approve_pending_receipt(text,text,text)', 'execute') then
     raise exception 'Payment approval RPC is callable by students';
   end if;
+  if has_function_privilege('anon', 'public.redeem_licence_code(text,text)', 'execute')
+    or has_function_privilege('anon', 'public.handle_new_user()', 'execute')
+    or has_function_privilege('authenticated', 'public.handle_deleted_user()', 'execute') then
+    raise exception 'Internal definer functions are exposed to API roles';
+  end if;
 
   if exists (select 1 from pg_policies where schemaname = 'public'
       and tablename = 'messages' and cmd in ('UPDATE', 'ALL'))

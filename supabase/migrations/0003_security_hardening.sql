@@ -20,6 +20,20 @@ create policy users_insert on public.users for insert to authenticated
     )
   );
 
+-- Supabase grants EXECUTE on new functions to API roles by default. These
+-- trigger functions have no legitimate direct RPC caller.
+revoke all on function public.handle_new_user() from public, anon, authenticated;
+revoke all on function public.handle_deleted_user() from public, anon, authenticated;
+
+-- Pin invoker-function lookup as well as definer-function lookup. Function
+-- names in SQL policies remain schema-qualified where they cross schemas.
+alter function public.doc_num(jsonb) set search_path = public;
+alter function public.doc_txt(jsonb) set search_path = public;
+alter function public.touch_updated_at() set search_path = public;
+alter function public.me() set search_path = public;
+alter function public.doc_query(text,text,jsonb,jsonb,integer,jsonb,boolean) set search_path = public;
+alter function public.doc_patch(text,text,text,jsonb,jsonb,boolean,bigint,boolean) set search_path = public;
+
 -- The redemption function uses a transaction-local marker. Other client writes
 -- cannot change privileged fields or reset the one-time Trust Pass marker.
 create or replace function public.guard_user_fields()
@@ -90,7 +104,7 @@ create policy messages_delete on public.messages for delete to authenticated
   using (public.in_conversation(parent_id) and data ->> 'senderId' = (select auth.uid())::text);
 
 create or replace function public.doc_table_ok(p_table text)
-returns boolean language sql immutable as $$
+returns boolean language sql immutable set search_path = public as $$
   select p_table = any (array[
     'users', 'public_profiles', 'lessons', 'practice_questions', 'conversations',
     'messages', 'challenges', 'challenge_results', 'verification_requests',
@@ -244,6 +258,11 @@ begin
   return query select 'ok'::text, v_row.plan_id, v_new_exp, v_current;
 end
 $$;
+
+-- 0002 revoked PUBLIC but this Supabase project also grants anon explicitly.
+-- Keep the intended authenticated redemption path and remove anonymous RPC.
+revoke all on function public.redeem_licence_code(text, text) from public, anon;
+grant execute on function public.redeem_licence_code(text, text) to authenticated;
 
 -- One atomic counter shared across all function instances. Only the server's
 -- service role can call it after verifying the user's access token.
