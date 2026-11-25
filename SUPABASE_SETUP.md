@@ -21,17 +21,18 @@ Provisioning takes a couple of minutes.
 
 ## 2. Create the schema
 
-The entire schema — tables, indexes, row-level security, the storage bucket, the
-triggers that keep a `public.users` row in step with `auth.users` — lives in one
-idempotent file.
+The schema, access policies, storage bucket and Auth profile triggers live in
+three ordered migration files. Use a disposable project first.
 
 1. Dashboard → **SQL Editor** → **New query**.
-2. Paste the whole of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
-3. **Run**.
+2. Apply [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql),
+   then `0002_licence_codes.sql`, then `0003_security_hardening.sql` in order.
+3. **Run** each file and stop if any statement fails. The third migration is
+   required for private profile reads, licence redemption and shared AI limits.
 
-It is safe to re-run: every statement is `create ... if not exists`,
-`create or replace`, or a `drop policy if exists` followed by a `create policy`.
-Re-run it after pulling a change to that file.
+Do not reapply an earlier migration to a live database without reviewing its
+effects on later policies and functions. Run `npm run test:db` with a disposable
+database URL after applying all three.
 
 Expect `Success. No rows returned`. If you get
 `stack depth limit exceeded`, you ran a partial paste — the `is_admin()` function
