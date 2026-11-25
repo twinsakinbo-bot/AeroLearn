@@ -29,6 +29,19 @@ begin
     or has_table_privilege('authenticated', 'public.api_daily_usage', 'select') then
     raise exception 'Free plan quota can be changed by students';
   end if;
+  if has_function_privilege('authenticated',
+      'public.approve_pending_receipt(text,text,text)', 'execute')
+    or not has_function_privilege('service_role',
+      'public.approve_pending_receipt(text,text,text)', 'execute') then
+    raise exception 'Payment approval RPC is callable by students';
+  end if;
+
+  if exists (select 1 from pg_policies where schemaname = 'public'
+      and tablename = 'messages' and cmd in ('UPDATE', 'ALL'))
+    or not exists (select 1 from pg_trigger where tgname = 'conversations_membership_guard'
+      and tgenabled = 'O') then
+    raise exception 'Chat message or membership guard is missing';
+  end if;
 
   if exists (
     select 1 from pg_policies where schemaname = 'public' and tablename = 'challenge_results'

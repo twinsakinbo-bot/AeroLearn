@@ -641,11 +641,6 @@ export default function MessagesPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.reply) throw new Error(data.error || "The assistant did not reply.")
       if (data.reply) {
-        await addDoc(collection(db, "conversations", conv.id, "messages"), {
-          senderId: AI_BOT_ID,
-          text: data.reply,
-          createdAt: serverTimestamp(),
-        })
         await updateDoc(convRef, {
           lastMessage: data.reply,
           updatedAt: serverTimestamp(),

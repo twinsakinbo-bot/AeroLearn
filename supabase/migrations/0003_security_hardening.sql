@@ -57,6 +57,38 @@ where (select auth.uid()) is not null;
 revoke all on public.public_profiles from public, anon;
 grant select on public.public_profiles to authenticated;
 
+-- A group member cannot make themselves an admin, add an outsider, or turn a
+-- direct thread into a group. The leave endpoint uses the service role.
+create or replace function public.guard_conversation_membership()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if auth.uid() is null or public.is_admin() then return new; end if;
+  if new.data -> 'type' is distinct from old.data -> 'type' then
+    raise exception 'Conversation type is immutable' using errcode = '42501';
+  end if;
+  if new.data -> 'participants' is distinct from old.data -> 'participants'
+    or new.data -> 'admins' is distinct from old.data -> 'admins' then
+    if old.data ->> 'type' is distinct from 'group'
+      or not (old.data -> 'admins' @> to_jsonb(auth.uid()::text)) then
+      raise exception 'Only group admins can change membership' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists conversations_membership_guard on public.conversations;
+create trigger conversations_membership_guard before update on public.conversations
+  for each row execute function public.guard_conversation_membership();
+
+-- Chat content is append-only for students. Bot replies are inserted by the
+-- AI route with its service role after it verifies the thread membership.
+drop policy if exists messages_update on public.messages;
+drop policy if exists messages_insert on public.messages;
+create policy messages_insert on public.messages for insert to authenticated
+  with check (public.in_conversation(parent_id) and data ->> 'senderId' = (select auth.uid())::text);
+drop policy if exists messages_delete on public.messages;
+create policy messages_delete on public.messages for delete to authenticated
+  using (public.in_conversation(parent_id) and data ->> 'senderId' = (select auth.uid())::text);
+
 create or replace function public.doc_table_ok(p_table text)
 returns boolean language sql immutable as $$
   select p_table = any (array[
@@ -169,7 +201,7 @@ begin
 
   if v_days is null then
     -- Unknown plan id: a code was minted for something no longer priced. Grant a
-    -- month rather than taking access away — the student is not at fault.
+  -- month rather than taking access away — the student is not at fault.
     v_days := 30;
   end if;
 
@@ -319,4 +351,51 @@ revoke all on function public.claim_challenge_reward(text, text, integer, intege
   from public, anon, authenticated;
 grant execute on function public.claim_challenge_reward(text, text, integer, integer, integer, integer, text)
   to service_role;
+
+-- Bank transfers are manually verified by an administrator. Once approved,
+-- update the plan and receipt together, with locks to prevent double approval.
+create or replace function public.approve_pending_receipt(p_request_id text, p_user_id text, p_reviewer_id text)
+returns timestamptz language plpgsql set search_path = public as $$
+declare v_receipt public.verification_requests%rowtype;
+v_user public.users%rowtype;
+v_plan text; v_days integer; v_current timestamptz; v_expiry timestamptz;
+begin
+  if p_request_id is null or p_user_id is null or p_reviewer_id is null then
+    raise exception 'Missing approval identity' using errcode = '22023';
+  end if;
+  select * into v_receipt from public.verification_requests where id = p_request_id for update;
+  if not found or v_receipt.data ->> 'status' is distinct from 'pending'
+    or v_receipt.data ->> 'userId' is distinct from p_user_id then
+    raise exception 'Receipt is not pending for this student' using errcode = '22023';
+  end if;
+  select * into v_user from public.users where id = p_user_id for update;
+  if not found or v_user.data ->> 'role' = 'admin' then
+    raise exception 'Student not found' using errcode = '22023';
+  end if;
+  v_plan := v_receipt.data ->> 'planId';
+  select days into v_days from public.plan_durations where plan = v_plan;
+  if not found then raise exception 'Unknown plan' using errcode = '22023'; end if;
+  if v_user.data ->> 'subscription' = 'lifetime' and v_plan <> 'lifetime' then
+    raise exception 'Lifetime access cannot be shortened' using errcode = '22023';
+  end if;
+  if jsonb_typeof(v_user.data -> 'proExpiresAt') = 'object' then
+    v_current := to_timestamp((v_user.data #>> '{proExpiresAt,__ts,s}')::bigint);
+  end if;
+  v_expiry := case when v_days < 0 then null
+    else greatest(coalesce(v_current, now()), now()) + make_interval(days => v_days) end;
+  update public.users set data = v_user.data || jsonb_build_object(
+    'subscription', v_plan,
+    'proExpiresAt', case when v_expiry is null then 'null'::jsonb
+      else jsonb_build_object('__ts', jsonb_build_object('s', floor(extract(epoch from v_expiry))::bigint, 'n', 0)) end,
+    'pendingPlan', null, 'pendingSince', null, 'trustPassRequestId', null,
+    'planExpiryReminderFor', null, 'planEndedNotifiedFor', null, 'lastExpiredPlan', null
+  ) where id = p_user_id;
+  update public.verification_requests set data = v_receipt.data || jsonb_build_object(
+    'status', 'approved', 'reviewedAt', jsonb_build_object('__ts', jsonb_build_object('s', floor(extract(epoch from now()))::bigint, 'n', 0)),
+    'reviewedBy', p_reviewer_id
+  ) where id = p_request_id;
+  return v_expiry;
+end $$;
+revoke all on function public.approve_pending_receipt(text, text, text) from public, anon, authenticated;
+grant execute on function public.approve_pending_receipt(text, text, text) to service_role;
 

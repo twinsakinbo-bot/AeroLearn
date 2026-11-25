@@ -3,9 +3,10 @@ import { Resend } from "resend"
 
 import { requireAdmin } from "@/lib/api-auth"
 import { getAdminDb } from "@/lib/db-admin"
+import { getSupabaseAdmin } from "@/lib/supabase/admin"
 import { emailLayout, emailParagraph, escapeHtml, MAIL_FROM } from "@/lib/email-template"
 import { isProUser } from "@/lib/plan-access"
-import { planById, planDays, planName } from "@/lib/plans"
+import { planById, planName } from "@/lib/plans"
 
 function dateOf(value: unknown): Date | null {
   if (!value) return null
@@ -59,20 +60,16 @@ export async function POST(request: Request) {
   if (user.subscription === "lifetime" && plan.id !== "lifetime") {
     return NextResponse.json({ error: "This student already has lifetime access. Do not replace it with a shorter plan." }, { status: 409 })
   }
-  const current = dateOf(user.proExpiresAt)
-  const days = planDays(plan.id)
-  const expiresAt = days === null ? null : new Date(Math.max(Date.now(), current?.getTime() || 0) + days * 86_400_000)
-  await userRef.update({
-    subscription: plan.id,
-    proExpiresAt: expiresAt,
-    pendingPlan: null,
-    pendingSince: null,
-    trustPassRequestId: null,
-    planExpiryReminderFor: null,
-    planEndedNotifiedFor: null,
-    lastExpiredPlan: null,
+  const { data: grantedExpiry, error: approvalError } = await getSupabaseAdmin().rpc("approve_pending_receipt", {
+    p_request_id: requestId,
+    p_user_id: userId,
+    p_reviewer_id: gate.uid,
   })
-  await receiptRef.update({ status: "approved", reviewedAt: new Date(), reviewedBy: gate.uid })
+  if (approvalError) {
+    console.error("Payment approval transaction failed:", approvalError)
+    return NextResponse.json({ error: "That transfer could not be approved. Refresh the queue and try again." }, { status: 409 })
+  }
+  const expiresAt = grantedExpiry ? new Date(grantedExpiry as string) : null
 
   let emailSent = false
   if (process.env.RESEND_API_KEY && user.email) {

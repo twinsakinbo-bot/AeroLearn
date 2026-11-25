@@ -26,6 +26,7 @@ import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "
 
 import { requireUser } from "@/lib/api-auth"
 import { enforceAiRateLimit } from "@/lib/ai-rate-limit"
+import { getAdminDb, FieldValue } from "@/lib/db-admin"
 import { FetchRefused, safeFetch } from "@/lib/safe-fetch"
 import { referenceQuery, UNCERTAIN_REPLY } from "@/lib/ai-tutor-reference"
 import { searchWikipedia } from "@/lib/web-search"
@@ -69,6 +70,25 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
+    const conversationId = typeof body?.conversationId === "string" ? body.conversationId : null
+    if (conversationId && !/^[a-zA-Z0-9_-]{1,128}$/.test(conversationId)) {
+      return NextResponse.json({ error: "Invalid chat." }, { status: 400 })
+    }
+    if (conversationId) {
+      const thread = await getAdminDb().collection("conversations").doc(conversationId).get()
+      const participants = thread.data()?.participants
+      if (!Array.isArray(participants) || !participants.includes(gate.uid) || !participants.includes("ai-bot")) {
+        return NextResponse.json({ error: "Chat not found." }, { status: 403 })
+      }
+    }
+    const answer = async (reply: string) => {
+      if (conversationId && reply) {
+        await getAdminDb().collection("conversations").doc(conversationId).collection("messages").add({
+          senderId: "ai-bot", text: reply, createdAt: FieldValue.serverTimestamp(),
+        })
+      }
+      return NextResponse.json({ reply })
+    }
     const mediaType = cap(body?.mediaType, 20)
     const mediaUrl = webUrlOrNull(body?.mediaUrl)
     const message = cap(body?.message, 2000)
@@ -150,11 +170,11 @@ export async function POST(req: Request) {
 
     const firstReply = completion.choices[0]?.message?.content || ""
     const lookup = !isImage ? referenceQuery(firstReply) : null
-    if (!lookup) return NextResponse.json({ reply: firstReply })
+    if (!lookup) return answer(firstReply)
 
     try {
       const sources = await searchWikipedia(lookup)
-      if (!sources.length) return NextResponse.json({ reply: UNCERTAIN_REPLY })
+      if (!sources.length) return answer(UNCERTAIN_REPLY)
       const grounded = await chatCompletion({
         model,
         messages: [
@@ -164,10 +184,10 @@ export async function POST(req: Request) {
         ],
       }, 45_000)
       const reply = grounded.choices[0]?.message?.content || ""
-      return NextResponse.json({ reply: referenceQuery(reply) ? UNCERTAIN_REPLY : reply })
+      return answer(referenceQuery(reply) ? UNCERTAIN_REPLY : reply)
     } catch (error) {
       console.error("Tutor reference lookup failed:", error)
-      return NextResponse.json({ reply: UNCERTAIN_REPLY })
+      return answer(UNCERTAIN_REPLY)
     }
   } catch (error) {
     console.error("AI Error:", error)

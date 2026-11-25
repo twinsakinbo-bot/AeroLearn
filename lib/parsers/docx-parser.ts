@@ -5,7 +5,6 @@
  * (server-side).  Mammoth uses Node-specific APIs that don't work in
  * the browser.
  */
-import mammoth from "mammoth"
 
 export interface DocxParseResult {
   text: string
@@ -23,6 +22,7 @@ export async function parseDocx(
   const errors: string[] = []
 
   try {
+    const mammoth = (await import("mammoth")).default
     const result = await mammoth.extractRawText({
       buffer: Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer),
     })

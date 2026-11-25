@@ -4,8 +4,7 @@
  * Works in the browser.  Returns worksheet names so the UI can let the
  * admin pick which sheet to import.
  */
-import * as XLSX from "xlsx"
-import { RawRow } from "../types/question"
+import type { RawRow } from "../types/question"
 
 export interface XlsxParseResult {
   rows: RawRow[]
@@ -26,6 +25,7 @@ export async function parseXlsx(
   opts: ParseXlsxOptions = {}
 ): Promise<XlsxParseResult> {
   const arrayBuffer = await file.arrayBuffer()
+  const XLSX = await import("xlsx")
   const workbook = XLSX.read(arrayBuffer, { type: "array" })
 
   const errors: string[] = []
@@ -70,6 +70,7 @@ export async function parseXlsx(
  */
 export async function getXlsxSheetNames(file: File): Promise<string[]> {
   const arrayBuffer = await file.arrayBuffer()
+  const XLSX = await import("xlsx")
   const workbook = XLSX.read(arrayBuffer, { type: "array" })
   return workbook.SheetNames
 }
