@@ -5,6 +5,12 @@ on:
   pull_request:
 
 jobs:
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash tests/run-database-tests.sh
+
   web:
     runs-on: ubuntu-latest
     steps:

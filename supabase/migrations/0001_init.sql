@@ -17,27 +17,6 @@
 
 create extension if not exists pgcrypto;
 
--- ---------------------------------------------------------------- is_admin()
--- SECURITY DEFINER on purpose. The policies on `users` call this, and a plain
--- function would re-enter those same policies to read the role — an infinite
--- recursion Postgres reports as "stack depth limit exceeded". Definer rights
--- read the row once, outside RLS.
-create or replace function public.is_admin()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce(
-    (select data->>'role' = 'admin' from public.users where id = auth.uid()::text),
-    false
-  );
-$$;
-
-comment on function public.is_admin() is
-  'Ports isAdmin() from firestore.rules: users/{uid}.role == "admin".';
-
 -- ------------------------------------------------------- comparable jsonb keys
 -- `data->>''xp''` is text, so ordering by it puts 9 after 10 and range filters on
 -- dates compare character by character. These two project a jsonb scalar into
@@ -114,6 +93,25 @@ begin
   end loop;
 end
 $$;
+
+-- ---------------------------------------------------------------- is_admin()
+-- Define this after the users table so a fresh migration can validate its SQL.
+-- SECURITY DEFINER avoids policy recursion when checking the caller's role.
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select data->>'role' = 'admin' from public.users where id = auth.uid()::text),
+    false
+  );
+$$;
+
+comment on function public.is_admin() is
+  'Ports isAdmin() from firestore.rules: users/{uid}.role == "admin".';
 
 -- Messages belong to a conversation; deleting the conversation clears them.
 alter table public.messages

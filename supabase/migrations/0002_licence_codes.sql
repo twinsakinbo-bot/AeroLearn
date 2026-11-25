@@ -152,14 +152,14 @@ begin
 
   -- Atomic claim: the winner gets the row, everyone else gets zero rows. There is
   -- no read-then-write window for a concurrent redemption to slip through.
-  update public.licence_codes
+  update public.licence_codes as lc
      set status      = 'used',
          redeemed_by = p_uid,
          redeemed_at = now(),
          updated_at  = now()
-   where id = v_id
-     and status = 'available'
-   returning * into v_row;
+   where lc.id = v_id
+     and lc.status = 'available'
+   returning lc.* into v_row;
 
   if v_row.id is null then
     -- Distinguish the cases so the UI can be honest about which one happened.

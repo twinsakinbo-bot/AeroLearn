@@ -61,9 +61,12 @@ npm run typecheck
 npm test
 npm run build
 npm run desktop:check
+npm run test:db:local
 ```
 
 For policy checks, apply the migrations to a disposable database, then set `SUPABASE_TEST_DATABASE_URL` for **that database only** and run `npm run test:db`. This is a read-only catalog check; test real student/admin access with dedicated staging accounts before release. CI runs the web and desktop checks on pushes and pull requests. The Tauri installer requires its platform toolchain and is not built in CI.
+
+`test:db:local` requires Docker. It creates an isolated PostgreSQL 17 container with minimal Supabase Auth/Storage interfaces, applies all migrations, and runs catalog, RLS, payment-approval and licence-redemption tests. It removes the container on exit and also runs in CI. This verifies SQL behavior; real JWT validation, Auth and Storage HTTP flows still need Supabase staging tests. The functional SQL files use fake rows inside rolled-back transactions and must only be run against disposable databases.
 
 ## Release procedure
 

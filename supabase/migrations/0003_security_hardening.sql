@@ -83,7 +83,7 @@ begin
   if new.data -> 'participants' is distinct from old.data -> 'participants'
     or new.data -> 'admins' is distinct from old.data -> 'admins' then
     if old.data ->> 'type' is distinct from 'group'
-      or not (old.data -> 'admins' @> to_jsonb(auth.uid()::text)) then
+      or not coalesce(old.data -> 'admins' @> to_jsonb(auth.uid()::text), false) then
       raise exception 'Only group admins can change membership' using errcode = '42501';
     end if;
   end if;
@@ -176,14 +176,14 @@ begin
 
   -- Atomic claim: the winner gets the row, everyone else gets zero rows. There is
   -- no read-then-write window for a concurrent redemption to slip through.
-  update public.licence_codes
+  update public.licence_codes as lc
      set status      = 'used',
          redeemed_by = p_uid,
          redeemed_at = now(),
          updated_at  = now()
-   where id = v_id
-     and status = 'available'
-   returning * into v_row;
+   where lc.id = v_id
+     and lc.status = 'available'
+   returning lc.* into v_row;
 
   if v_row.id is null then
     -- Distinguish the cases so the UI can be honest about which one happened.
