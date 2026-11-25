@@ -148,7 +148,7 @@ begin
   -- leaked in it would be reset at commit.
   perform set_config('aerolearn.redeeming', '1', true);
 
-  v_id := encode(digest(upper(p_key), 'sha256'), 'hex');
+  v_id := encode(sha256(convert_to(upper(p_key), 'UTF8')), 'hex');
 
   -- Atomic claim: the winner gets the row, everyone else gets zero rows. There is
   -- no read-then-write window for a concurrent redemption to slip through.
