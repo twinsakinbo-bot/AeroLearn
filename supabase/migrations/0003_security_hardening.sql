@@ -325,7 +325,7 @@ create or replace function public.claim_challenge_reward(
   p_uid text, p_challenge text, p_score integer, p_total integer,
   p_time integer, p_coins integer, p_name text
 )
-returns boolean language plpgsql set search_path = public as $$
+returns boolean language plpgsql security definer set search_path = public as $$
 declare v_id text;
 begin
   if p_uid is null or p_challenge is null or p_score < 0 or p_total < 1
@@ -355,7 +355,7 @@ grant execute on function public.claim_challenge_reward(text, text, integer, int
 -- Bank transfers are manually verified by an administrator. Once approved,
 -- update the plan and receipt together, with locks to prevent double approval.
 create or replace function public.approve_pending_receipt(p_request_id text, p_user_id text, p_reviewer_id text)
-returns timestamptz language plpgsql set search_path = public as $$
+returns timestamptz language plpgsql security definer set search_path = public as $$
 declare v_receipt public.verification_requests%rowtype;
 v_user public.users%rowtype;
 v_plan text; v_days integer; v_current timestamptz; v_expiry timestamptz;
