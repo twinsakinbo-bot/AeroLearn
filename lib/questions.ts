@@ -216,6 +216,18 @@ export function correctLetterOf(question: StoredQuestion): OptionLetter | null {
   return null
 }
 
+/** Missing or invalid answer keys never award credit, including for a blank answer. */
+export function isCorrectAnswer(question: StoredQuestion, selected: OptionLetter | null | undefined): boolean {
+  const correct = correctLetterOf(question)
+  return correct !== null && selected === correct
+}
+
+/** Scores the exact question set shown in a timed mock exam. */
+export function scoreAnswers(questions: StoredQuestion[], answers: Record<string, OptionLetter | null>): number {
+  return questions.reduce((score, question) =>
+    score + (question.id && isCorrectAnswer(question, answers[question.id]) ? 1 : 0), 0)
+}
+
 /** Fisher–Yates, on a copy. `sort(() => Math.random() - 0.5)` is not a shuffle. */
 export function shuffled<T>(items: T[]): T[] {
   const copy = [...items]

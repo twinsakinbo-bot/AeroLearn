@@ -241,7 +241,7 @@ export default function PracticePage() {
     if (!marked) {
       setMarked(true)
       setRunning(false)
-      const right = answer === correct
+      const right = correct !== null && answer === correct
       if (right) setScore((s) => s + 1)
 
       try {

@@ -15,6 +15,7 @@ import { CalculatorPanel } from "@/components/calculator/calculator-panel"
 import { SUBJECTS } from "@/lib/constants"
 import {
   correctLetterOf,
+  scoreAnswers,
   optionsOf,
   questionText,
   shuffled,
@@ -273,11 +274,7 @@ export default function MockExamsPage() {
     }
     submittedRef.current = true
 
-    let totalScore = 0
-    questions.forEach((q) => {
-      const correct = correctLetterOf(q)
-      if (correct && q.id && answers[q.id] === correct) totalScore += 1
-    })
+    const totalScore = scoreAnswers(questions, answers)
     setScore(totalScore)
     setShowCalculator(false)
     setState("results")
