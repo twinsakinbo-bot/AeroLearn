@@ -21,6 +21,7 @@
 import { NextResponse } from "next/server"
 
 import { requireUser } from "@/lib/api-auth"
+import { enforceSharedRateLimit } from "@/lib/shared-rate-limit"
 import { FetchRefused, safeFetch } from "@/lib/safe-fetch"
 
 const MAX_TITLE = 200
@@ -75,6 +76,8 @@ function imageUrl(raw: string | null, base: string): string | null {
 export async function GET(request: Request) {
   const gate = await requireUser(request)
   if (!gate.ok) return gate.response
+  const limited = await enforceSharedRateLimit("link-preview", gate.uid, { max: 30, windowMs: 60_000 })
+  if (limited) return limited
 
   const url = new URL(request.url).searchParams.get("url")
   if (!url) {
@@ -89,7 +92,7 @@ export async function GET(request: Request) {
     if (!/text\/html|application\/xhtml/i.test(result.contentType)) {
       return NextResponse.json(
         { title: hostname, description: null, image: null, url: result.url },
-        { headers: { "Cache-Control": "public, max-age=3600" } },
+        { headers: { "Cache-Control": "private, no-store, max-age=0" } },
       )
     }
 
@@ -107,7 +110,7 @@ export async function GET(request: Request) {
         image: imageUrl(meta(html, "og:image"), result.url),
         url: result.url,
       },
-      { headers: { "Cache-Control": "public, max-age=3600" } },
+      { headers: { "Cache-Control": "private, no-store, max-age=0" } },
     )
   } catch (error) {
     if (error instanceof FetchRefused) {
@@ -125,7 +128,7 @@ export async function GET(request: Request) {
             image: null,
             url: parsed.toString(),
           },
-          { headers: { "Cache-Control": "public, max-age=3600" } },
+          { headers: { "Cache-Control": "private, no-store, max-age=0" } },
         )
       }
       return NextResponse.json({ error: error.message }, { status: error.status })

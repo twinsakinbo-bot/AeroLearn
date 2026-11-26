@@ -11,16 +11,12 @@ import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/lib/supabase/server"
 import { needsLearningSetup } from "@/lib/onboarding"
 
-/** Only same-origin paths, so `?next=` cannot be used as an open redirect. */
-function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/app"
-  return raw
-}
+import { safeNextPath } from "@/lib/safe-redirect"
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get("code")
-  const next = safeNext(url.searchParams.get("next"))
+  const next = safeNextPath(url.searchParams.get("next"), url.origin)
 
   const oauthError = url.searchParams.get("error_description") ?? url.searchParams.get("error")
   if (oauthError) {

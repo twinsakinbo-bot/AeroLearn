@@ -22,14 +22,15 @@
  *   - one wall-clock deadline covers every hop, so a chain of slow redirects
  *     cannot hold a request open indefinitely
  *
- * Residual risk, stated plainly: between the DNS check and the connection, a
- * hostile resolver can answer differently (DNS rebinding). Closing that means
- * connecting to the validated IP and carrying the hostname for TLS, which needs
- * a custom agent. The checks below are the usual mitigation level and stop every
- * variant that does not control a nameserver.
+ * The transport pins DNS to the vetted addresses. The deadline remains active
+ * through DNS resolution, redirects and reading the response body.
  */
 import { lookup } from "node:dns/promises"
 import { isIP } from "node:net"
+import { request as httpRequest } from "node:http"
+import { request as httpsRequest } from "node:https"
+import { Readable, pipeline } from "node:stream"
+import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib"
 
 /** Raised for anything we decline to fetch. `status` is what the route returns. */
 export class FetchRefused extends Error {
@@ -120,6 +121,9 @@ function isBlockedV4(address: string): boolean {
 function isBlockedV6(address: string): boolean {
   const value = address.toLowerCase().split("%")[0]
   if (value === "::" || value === "::1") return true
+  // Only global unicast; reject multicast, site-local and transition ranges.
+  if (!/^[23][0-9a-f]{3}:/.test(value)) return true
+  if (/^(2001:(0|db8):|2002:)/.test(value)) return true
 
   /* An IPv4 address wearing an IPv6 hat. `::ffff:127.0.0.1` is loopback, and so
      is `::ffff:7f00:1` — the second form is not worth decoding, so any mapped
@@ -156,7 +160,7 @@ async function addressesOf(host: string): Promise<string[]> {
 }
 
 /** Throws unless this exact URL is safe to request. Returns it normalised. */
-async function vet(rawUrl: string): Promise<string> {
+async function vet(rawUrl: string): Promise<{ url: string; addresses: string[] }> {
   let parsed: URL
   try {
     parsed = new URL(rawUrl)
@@ -182,13 +186,14 @@ async function vet(rawUrl: string): Promise<string> {
     throw new FetchRefused("That link points inside the server's own network.")
   }
 
-  for (const address of await addressesOf(host)) {
+  const addresses = await addressesOf(host)
+  for (const address of addresses) {
     if (isBlockedAddress(address)) {
       throw new FetchRefused("That link points inside the server's own network.")
     }
   }
 
-  return parsed.toString()
+  return { url: parsed.toString(), addresses }
 }
 
 /** Reads at most `maxBytes`, then hangs up on the rest. */
@@ -227,62 +232,84 @@ async function readCapped(
   return { bytes, truncated }
 }
 
-export async function safeFetch(
-  rawUrl: string,
-  options: SafeFetchOptions = {},
-): Promise<SafeFetchResult> {
-  const {
-    timeoutMs = 6000,
-    maxRedirects = 3,
-    maxBytes = 512 * 1024,
-    headers = {},
-  } = options
+/** A one-shot connection whose DNS lookup cannot change after validation. */
+function pinnedRequest(target: { url: string; addresses: string[] }, headers: Record<string, string>, signal: AbortSignal): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(target.url)
+    const request = parsed.protocol === "https:" ? httpsRequest : httpRequest
+    const records = target.addresses.map(address => ({ address, family: isIP(address) }))
+    const req = request(parsed, {
+      method: "GET",
+      agent: false,
+      signal,
+      headers: { "User-Agent": AGENT, ...headers, "Accept-Encoding": "identity" },
+      // Keep the original URL for Host and TLS certificate validation, but
+      // connect only to an address returned by the single vetted DNS lookup.
+      lookup: (_hostname, options, callback) => {
+        if (options.all) callback(null, records)
+        else callback(null, records[0].address, records[0].family)
+      },
+    }, (incoming) => {
+      const responseHeaders = new Headers()
+      for (const [key, value] of Object.entries(incoming.headers)) {
+        if (value !== undefined) responseHeaders.set(key, Array.isArray(value) ? value.join(", ") : value)
+      }
+      const status = incoming.statusCode || 502
+      const noBody = [204, 205, 304].includes(status)
+      if (noBody) incoming.resume()
+      const encoding = incoming.headers["content-encoding"]?.toLowerCase()
+      const decoder = !noBody && (encoding === "gzip" ? createGunzip() : encoding === "deflate" ? createInflate() : encoding === "br" ? createBrotliDecompress() : null)
+      // Some hosts compress even when identity was requested. Limit decoded
+      // bytes, and couple stream cleanup to the socket on errors/cancellation.
+      const body = decoder ? pipeline(incoming, decoder, () => {}) : incoming
+      resolve(new Response(noBody ? null : Readable.toWeb(body) as ReadableStream<Uint8Array>, {
+        status, headers: responseHeaders,
+      }))
+    })
+    req.once("error", reject)
+    req.end()
+  })
+}
 
-  const deadline = Date.now() + timeoutMs
-  let target = await vet(rawUrl)
+/** Resolve or reject even if DNS (which cannot be cancelled) is still pending. */
+function withinDeadline<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(new FetchRefused("That link took too long to answer.", 504))
+    if (signal.aborted) { abort(); return }
+    signal.addEventListener("abort", abort, { once: true })
+    promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort))
+  })
+}
 
-  for (let hop = 0; hop <= maxRedirects; hop += 1) {
-    const remaining = deadline - Date.now()
-    if (remaining <= 0) throw new FetchRefused("That link took too long to answer.", 504)
-
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), remaining)
-    let response: Response
-    try {
-      response = await fetch(target, {
-        headers: { "User-Agent": AGENT, ...headers },
-        /* Manual, so each hop goes back through `vet`. */
-        redirect: "manual",
-        signal: controller.signal,
-        cache: "no-store",
-      })
-    } catch {
-      throw new FetchRefused("That link could not be reached.", 502)
-    } finally {
-      clearTimeout(timer)
+export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}): Promise<SafeFetchResult> {
+  const { timeoutMs = 6000, maxRedirects = 3, maxBytes = 512 * 1024, headers = {} } = options
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    let target = await withinDeadline(vet(rawUrl), controller.signal)
+    for (let hop = 0; hop <= maxRedirects; hop++) {
+      const response = await withinDeadline(pinnedRequest(target, headers, controller.signal), controller.signal)
+      if (response.status >= 300 && response.status < 400) {
+        await response.body?.cancel().catch(() => {})
+        const location = response.headers.get("location")
+        if (!location) throw new FetchRefused("That link redirects nowhere.", 502)
+        target = await withinDeadline(vet(new URL(location, target.url).toString()), controller.signal)
+        continue
+      }
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => {})
+        throw new FetchRefused("That link did not load.", 502)
+      }
+      const { bytes, truncated } = await withinDeadline(readCapped(response, maxBytes), controller.signal)
+      return { url: target.url, status: response.status, contentType: response.headers.get("content-type") ?? "", bytes, truncated }
     }
-
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("location")
-      if (!location) throw new FetchRefused("That link redirects nowhere.", 502)
-      await response.body?.cancel().catch(() => {})
-      target = await vet(new URL(location, target).toString())
-      continue
-    }
-
-    if (!response.ok) {
-      throw new FetchRefused("That link did not load.", 502)
-    }
-
-    const { bytes, truncated } = await readCapped(response, maxBytes)
-    return {
-      url: target,
-      status: response.status,
-      contentType: response.headers.get("content-type") ?? "",
-      bytes,
-      truncated,
-    }
+    throw new FetchRefused("That link redirects too many times.", 502)
+  } catch (error) {
+    if (controller.signal.aborted) throw new FetchRefused("That link took too long to answer.", 504)
+    if (error instanceof FetchRefused) throw error
+    throw new FetchRefused("That link could not be reached.", 502)
+  } finally {
+    clearTimeout(timer)
+    controller.abort()
   }
-
-  throw new FetchRefused("That link redirects too many times.", 502)
 }

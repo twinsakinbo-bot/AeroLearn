@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAdminAuth, getAdminDb } from "@/lib/db-admin"
+import { requireUser } from "@/lib/api-auth"
+import { getAdminDb } from "@/lib/db-admin"
 import { lagosDayKey, nextLoginStreak } from "@/lib/streak"
 
 export async function POST(req: NextRequest) {
+  const gate = await requireUser(req)
+  if (!gate.ok) return gate.response
+  const uid = gate.uid
   try {
-    const authHeader = req.headers.get("authorization")
-    const idToken = authHeader?.replace("Bearer ", "")
-
-    if (!idToken) {
-      return NextResponse.json({ error: "No auth token provided" }, { status: 401 })
-    }
-
-    const decoded = await getAdminAuth().verifyIdToken(idToken)
-    const uid = decoded.uid
 
     const db = getAdminDb()
     const userRef = db.collection("users").doc(uid)
@@ -42,6 +37,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   } catch (error: any) {
     console.error("Login Gamification Error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: "Could not save your progress. Please try again." }, { status: 500 })
   }
 }

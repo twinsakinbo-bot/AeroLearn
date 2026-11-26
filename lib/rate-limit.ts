@@ -39,12 +39,14 @@ export function rateLimit(bucket: string, ip: string, rule: Rule): { ok: boolean
   const key = `${bucket}:${ip}`
   const now = Date.now()
   const recent = (hits.get(key) ?? []).filter((at) => now - at < rule.windowMs)
-  recent.push(now)
+  // Rejected attempts must not grow memory or extend the successful window.
+  const allowed = recent.length < rule.max
+  if (allowed) recent.push(now)
 
   if (hits.size > MAX_KEYS) hits.clear()
   hits.set(key, recent)
 
-  if (recent.length <= rule.max) return { ok: true, retryAfter: 0 }
+  if (allowed) return { ok: true, retryAfter: 0 }
 
   const oldest = recent[0] ?? now
   return { ok: false, retryAfter: Math.ceil((rule.windowMs - (now - oldest)) / 1000) }

@@ -1,5 +1,28 @@
 # AeroLearn repository audit
 
+## Security follow-up — 26 November 2026
+
+This section supersedes the historical deployment status below. The 25 November hardening migration is present in the live project; today's database checks were read-only. Screened all 47 API route files, the auth callback, request/auth helpers, outbound fetches, payment/AI paths, PWA headers and live RLS catalogs. This is a targeted review, not an exhaustive penetration test or a promise of no bugs.
+
+| Severity | Verified finding | Implemented correction |
+| --- | --- | --- |
+| High | `app/api/onboarding/welcome/route.ts` verified a token but accepted an arbitrary recipient from the request body, without a sending limit. A signed-in caller could use it to send unwanted mail. | Recipient/name now come from the server-verified Auth account, require confirmed email, and have a shared once-per-day account limit. |
+| High | `lib/safe-fetch.ts` resolved DNS for validation and then resolved again during fetch, leaving a DNS-rebinding SSRF gap. Its timer was cleared after response headers, so a stalled body could hold a request open. | Native HTTP(S) transport pins validated DNS addresses while retaining hostname/TLS validation. One deadline covers DNS, redirects and decoded body consumption. Private/transition addresses are rejected; byte caps apply after decompression. |
+| Medium | `app/auth/callback/route.ts` accepted `/\\evil.example` because it only rejected `//`; URL parsing treats backslashes as separators and redirects off-origin. | `safeNextPath` rejects backslashes/control characters and verifies the resolved origin. |
+| Medium | Signup, confirmation resend, reset and contact limits in `lib/rate-limit.ts` were process-local and reset between instances. | Public mail endpoints now use the existing service-only atomic database counter, with hashed IP/email identifiers, per-recipient auth-email limits, Retry-After and fail-closed behavior. Welcome mail and link previews also have shared limits. |
+| Medium | `app/api/auth/reset-password/route.ts` returned different success messages for existing and missing accounts. | Identical public response for successful dispatch, missing accounts and provider failures; input validation added. Timing-based enumeration and signup's deliberate duplicate-email response remain outside this fix. |
+| Medium | `app/api/link-preview/route.ts` explicitly marked authenticated previews public-cacheable. | All preview responses use private/no-store. |
+| Low | Rejected requests continued growing the process-local limiter's timestamp list and extended the window. | Only allowed attempts are stored. |
+| Low | Invalid session tokens produced 500s in lesson import and gamification login/claim. | Shared authorization gates return authentication errors before business logic; gamification no longer echoes raw internal exceptions. |
+
+Verification: 39 automated tests; 102 HTTP checks against a local production build for absent/invalid tokens; lint, TypeScript and production build; five SQL suites on disposable PostgreSQL (including shared rate-limit enforcement/reset/client denial). All passed. Controlled HTTP tests exercise DNS pinning, private redirects, stalled DNS/body, compressed-body caps and markup/redirect regressions. A live outbound HTTPS smoke attempt from this workspace could not resolve the domain; production outbound-provider compatibility is not claimed from that attempt. No test emails or test users were created in production.
+
+Live catalog: all 19 public tables have RLS; payment/reward/rate-counter RPCs deny direct anonymous/authenticated execution. The `public_profiles` security-definer view intentionally exposes only the listed public identity/progress fields and requires a signed-in caller; changing it to security-invoker without redesign would break community discovery. The advisor still flags this design, caller-scoped authorization helpers, and [disabled leaked-password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection). Private rate/quota/licence tables intentionally have no client policies.
+
+Remaining material risks: client-writable XP/coins/progress, client-visible formative answer keys, race between AI quota precheck and provider work, non-atomic multi-document compatibility transactions, and manual bank-transfer review. The referral/demo APIs still reference absent tables. Lesson import replacement currently deletes the old lesson before writing its replacement and can lose it on a later failure; this requires a stable-ID replacement fix. Dependency audit at review start: 0 critical, 22 high, 5 moderate, 6 low (33 total), including development/PWA chains and the admin-only document parser. These are not declared resolved by this code review. Shared counters also need a retention strategy at high volume. No load, full payment-provider, backup-restore, or low-end Android certification is claimed.
+
+## Historical baseline — before the 25 November rollout
+
 Audit date: 25 November 2026. Branch: `codex/security-production-hardening`. Scope: 321 tracked files at baseline across `app/`, `components/`, `lib/`, `desktop-app/`, `src-tauri/`, `supabase/`, PWA assets, Firebase legacy rules and deployment configuration. Every API route was screened for an authorization gate; migrations and deployment/PWA configuration were read in detail. Findings below combine source inspection, local checks, and read-only catalog checks against the connected AeroLearn Supabase project. No project data or schema was changed.
 
 | Severity | Verified finding and affected files | Resolution / status |

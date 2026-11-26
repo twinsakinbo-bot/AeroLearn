@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
 import { MAIL_DOMAIN } from "@/lib/email-template"
-import { clientIp, rateLimit } from "@/lib/rate-limit"
+import { clientIp } from "@/lib/rate-limit"
+import { enforceSharedRateLimit } from "@/lib/shared-rate-limit"
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy")
 
@@ -17,7 +18,7 @@ const LIMITS = { name: 120, email: 200, subject: 160, message: 4000 } as const
  * This endpoint is public by necessity — a visitor has no account yet. It is
  * therefore rate limited per IP and carries a honeypot field. The counter moved
  * to `lib/rate-limit`, shared with the two auth-email routes that had none at
- * all; the caveats about it being per-instance are recorded there.
+ * all; the database counter is shared across server instances.
  */
 const RULE = { max: 5, windowMs: 10 * 60 * 1000 }
 
@@ -27,13 +28,8 @@ function clean(value: unknown, max: number) {
 
 export async function POST(req: Request) {
   try {
-    const throttle = rateLimit("contact", clientIp(req), RULE)
-    if (!throttle.ok) {
-      return NextResponse.json(
-        { error: "Too many messages from this connection. Please try again later." },
-        { status: 429, headers: { "Retry-After": String(throttle.retryAfter) } },
-      )
-    }
+    const limited = await enforceSharedRateLimit("contact", clientIp(req), RULE)
+    if (limited) return limited
 
     const body = await req.json().catch(() => null)
     if (!body || typeof body !== "object") {

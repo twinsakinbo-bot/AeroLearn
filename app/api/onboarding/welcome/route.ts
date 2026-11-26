@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { requireUser } from "@/lib/api-auth"
+import { enforceSharedRateLimit } from "@/lib/shared-rate-limit"
+import { welcomeRecipient } from "@/lib/welcome-recipient"
 import { getAdminAuth } from "@/lib/db-admin"
 
 import {
@@ -15,21 +18,15 @@ import {
 const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy")
 
 export async function POST(req: Request) {
+  const gate = await requireUser(req)
+  if (!gate.ok) return gate.response
+  const limited = await enforceSharedRateLimit("welcome-email", gate.uid, { max: 1, windowMs: 24 * 60 * 60_000 })
+  if (limited) return limited
   try {
-    const authHeader = req.headers.get("authorization");
-    const idToken = authHeader?.replace("Bearer ", "");
-
-    if (!idToken) {
-      return NextResponse.json({ error: "Unauthorized: No token provided" }, { status: 401 });
-    }
-
-    try {
-      await getAdminAuth().verifyIdToken(idToken);
-    } catch (e) {
-      return NextResponse.json({ error: "Unauthorized: Invalid token" }, { status: 403 });
-    }
-
-    const { email, name } = await req.json()
+    // Recipient identity comes only from Auth, never the request body/profile JSON.
+    const recipient = welcomeRecipient(await getAdminAuth().getUser(gate.uid))
+    if (!recipient) return NextResponse.json({ error: "Confirm your email first." }, { status: 403 })
+    const { email, name } = recipient
 
     if (!process.env.RESEND_API_KEY) {
       return NextResponse.json(

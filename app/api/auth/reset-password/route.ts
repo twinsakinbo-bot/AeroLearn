@@ -3,7 +3,9 @@ import { getAdminAuth } from "@/lib/db-admin"
 import { Resend } from "resend"
 
 import { MAIL_FROM, emailLayout, emailParagraph, escapeHtml } from "@/lib/email-template"
-import { clientIp, rateLimit } from "@/lib/rate-limit"
+import { clientIp } from "@/lib/rate-limit"
+import { enforceSharedRateLimit } from "@/lib/shared-rate-limit"
+import { passwordResetResult } from "@/lib/password-reset"
 import { siteUrl } from "@/lib/site"
 
 // NOTE: Resend is instantiated inside the handler to avoid crashing at build
@@ -17,13 +19,15 @@ import { siteUrl } from "@/lib/site"
 const RULE = { max: 4, windowMs: 15 * 60 * 1000 }
 
 export async function POST(req: Request) {
-  const throttle = rateLimit("reset-password", clientIp(req), RULE)
-  if (!throttle.ok) {
-    return NextResponse.json(
-      { error: "Too many reset requests from this connection. Try again shortly." },
-      { status: 429, headers: { "Retry-After": String(throttle.retryAfter) } },
-    )
+  const limited = await enforceSharedRateLimit("reset-password-ip", clientIp(req), RULE)
+  if (limited) return limited
+  const body = await req.json().catch(() => null)
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 })
   }
+  const emailLimited = await enforceSharedRateLimit("reset-password-address", email, RULE)
+  if (emailLimited) return emailLimited
 
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) {
@@ -32,22 +36,8 @@ export async function POST(req: Request) {
   }
   const resend = new Resend(resendKey)
 
-  try {
-    const { email } = await req.json()
-
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 })
-    }
-
-    // 1. Ask Supabase for a recovery link for this address
-    let rawLink: string
-    try {
-      rawLink = await getAdminAuth().generatePasswordResetLink(email)
-    } catch (linkErr: any) {
-      console.error("Could not generate a reset link:", linkErr)
-      // Even if user not found, we should return success to prevent email enumeration attacks
-      return NextResponse.json({ success: true, message: "If an account exists, a reset link was sent." })
-    }
+  const result = await passwordResetResult(async () => {
+    const rawLink = await getAdminAuth().generatePasswordResetLink(email)
 
     /* 2. Take the code out of that link. Firebase called it `oobCode`; Supabase's
        verify URL carries the hashed token as `token`. The outgoing query name
@@ -89,14 +79,7 @@ export async function POST(req: Request) {
       }),
     })
 
-    if (error) {
-      console.error("Resend Error:", error)
-      return NextResponse.json({ error: "Failed to send email." }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, message: "Password reset link sent!" })
-  } catch (error: any) {
-    console.error("Custom Password Reset Error:", error)
-    return NextResponse.json({ error: "Internal server error." }, { status: 500 })
-  }
+    if (error) throw error
+  })
+  return NextResponse.json(result)
 }

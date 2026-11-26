@@ -1,26 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireAdmin } from "@/lib/api-auth"
 import { Lesson } from "@/lib/types/lesson"
 
 const BATCH_SIZE = 500
 
 export async function POST(request: NextRequest) {
-  // --- 1. Verify admin auth ---
-  const authHeader = request.headers.get("authorization")
-  const idToken = authHeader?.replace("Bearer ", "")
-
-  if (!idToken) {
-    return NextResponse.json({ error: "No auth token provided" }, { status: 401 })
-  }
+  const gate = await requireAdmin(request)
+  if (!gate.ok) return gate.response
 
   try {
-    const { getAdminDb, getAdminAuth } = await import("@/lib/db-admin")
-    const decoded = await getAdminAuth().verifyIdToken(idToken)
-
-    const userSnap = await getAdminDb().collection("users").doc(decoded.uid).get()
-    const role = userSnap.exists ? userSnap.data()?.role : undefined
-    if (role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized: admin access required" }, { status: 403 })
-    }
+    const { getAdminDb } = await import("@/lib/db-admin")
 
     // --- 2. Parse request body ---
     const body = await request.json()

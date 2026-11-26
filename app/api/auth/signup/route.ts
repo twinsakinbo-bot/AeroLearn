@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 
 import { CLASS_LEVELS, DEPARTMENTS, EXAM_TYPES, SUBJECTS } from "@/lib/constants"
 import { firstUnmetPasswordRule } from "@/lib/password-rules"
-import { clientIp, rateLimit } from "@/lib/rate-limit"
+import { clientIp } from "@/lib/rate-limit"
+import { enforceSharedRateLimit } from "@/lib/shared-rate-limit"
 import { getSubjectLimit } from "@/lib/subscription"
 import { getSupabaseAdmin } from "@/lib/supabase/admin"
 import { siteUrl } from "@/lib/site"
@@ -10,10 +11,8 @@ import { sendVerificationEmail } from "@/lib/verification-email"
 import { signupFailure } from "@/lib/signup-errors"
 
 export async function POST(request: Request) {
-  const throttle = rateLimit("email-signup", clientIp(request), { max: 5, windowMs: 15 * 60_000 })
-  if (!throttle.ok) {
-    return NextResponse.json({ error: "Too many attempts. Wait a few minutes, then try again." }, { status: 429 })
-  }
+  const limited = await enforceSharedRateLimit("email-signup-ip", clientIp(request), { max: 5, windowMs: 15 * 60_000 })
+  if (limited) return limited
 
   const body = await request.json().catch(() => null)
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
@@ -24,6 +23,8 @@ export async function POST(request: Request) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return NextResponse.json({ error: "Enter a valid email address you can open.", field: "email" }, { status: 400 })
   }
+  const emailLimited = await enforceSharedRateLimit("email-signup-address", email, { max: 3, windowMs: 15 * 60_000 })
+  if (emailLimited) return emailLimited
   if (!fullName) return NextResponse.json({ error: "Enter your name.", field: "name" }, { status: 400 })
   const unmet = firstUnmetPasswordRule(password)
   if (unmet) return NextResponse.json({ error: `Your password still needs ${unmet.toLowerCase()}.`, field: "password" }, { status: 400 })

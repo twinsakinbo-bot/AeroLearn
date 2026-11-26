@@ -19,7 +19,8 @@
     "desktop:check": "npm --prefix desktop-app run build",
     "test:plans": "tsx --test tests/plan-flow.test.ts",
     "desktop:dev": "npx tauri dev",
-    "desktop:build": "npm --prefix desktop-app run build && npx tauri build"
+    "desktop:build": "npm --prefix desktop-app run build && npx tauri build",
+    "test:http": "node tests/http-security-check.mjs"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",

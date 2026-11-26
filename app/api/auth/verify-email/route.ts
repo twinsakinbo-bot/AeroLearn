@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 
 import { getAdminAuth } from "@/lib/db-admin"
-import { clientIp, rateLimit } from "@/lib/rate-limit"
+import { clientIp } from "@/lib/rate-limit"
+import { enforceSharedRateLimit } from "@/lib/shared-rate-limit"
 import { getSupabaseAdmin } from "@/lib/supabase/admin"
 import { siteUrl } from "@/lib/site"
 import { sendVerificationEmail } from "@/lib/verification-email"
@@ -16,11 +17,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 })
   }
 
-  const perIp = rateLimit("verify-email-ip", clientIp(request), RULE)
-  const perEmail = rateLimit("verify-email-address", email, RULE)
-  if (!perIp.ok || !perEmail.ok) {
-    return NextResponse.json({ error: "Too many requests. Wait a few minutes before trying again." }, { status: 429 })
-  }
+  const perIp = await enforceSharedRateLimit("verify-email-ip", clientIp(request), RULE)
+  if (perIp) return perIp
+  const perEmail = await enforceSharedRateLimit("verify-email-address", email, RULE)
+  if (perEmail) return perEmail
   if (!process.env.RESEND_API_KEY) {
     return NextResponse.json({ error: "Email service is unavailable. Try again later." }, { status: 503 })
   }
