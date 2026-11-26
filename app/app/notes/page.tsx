@@ -6,9 +6,7 @@ import { useRouter } from "next/navigation"
 import { auth, onAuthStateChanged } from "@/lib/auth"
 import { collection, db, doc, getDoc, getDocs, query, where } from "@/lib/db"
 import { BookOpen, ChevronRight, FileText, Search } from "lucide-react"
-import ReactMarkdown from "react-markdown"
-import rehypeKatex from "rehype-katex"
-import remarkMath from "remark-math"
+import { LearningMarkdown } from "@/components/learn/LearningMarkdown"
 import "katex/dist/katex.min.css"
 
 import { AI_FALLBACK_LINE, LibraryPendingNotice } from "@/components/ui/availability"
@@ -222,7 +220,7 @@ export default function NotesPage() {
 
         {markdown ? (
           <div className="prose max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-muted prose-li:text-muted">
-            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{markdown}</ReactMarkdown>
+            <LearningMarkdown>{markdown}</LearningMarkdown>
           </div>
         ) : blocks.length === 0 ? (
           <EmptyState

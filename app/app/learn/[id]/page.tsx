@@ -15,9 +15,7 @@ import {
   Video,
   X,
 } from "lucide-react"
-import ReactMarkdown from "react-markdown"
-import rehypeKatex from "rehype-katex"
-import remarkMath from "remark-math"
+import { LearningMarkdown } from "@/components/learn/LearningMarkdown"
 import "katex/dist/katex.min.css"
 
 import { AiChatBox } from "@/components/learn/AiChatBox"
@@ -268,9 +266,9 @@ export default function LessonViewPage() {
 
       <Section icon={BookOpen} title="Notes">
         <div className={MARKDOWN_PROSE}>
-          <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+          <LearningMarkdown>
             {lesson.content}
-          </ReactMarkdown>
+          </LearningMarkdown>
         </div>
       </Section>
 
@@ -286,9 +284,9 @@ export default function LessonViewPage() {
                   {example.title || `Example ${index + 1}`}
                 </p>
                 <div className={MARKDOWN_PROSE}>
-                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  <LearningMarkdown>
                     {example.content}
-                  </ReactMarkdown>
+                  </LearningMarkdown>
                 </div>
               </li>
             ))}

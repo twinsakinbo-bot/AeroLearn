@@ -765,6 +765,14 @@
   color: rgb(var(--color-fg));
 }
 
+/* Long lesson equations scroll inside the card instead of widening the page. */
+.learning-markdown .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.25rem;
+}
+
 /* Autofill in Chrome paints its own yellow; force it back onto the palette.
    The inset shadow has to be large enough to cover the whole field, hence the
    1000px — there is no `background-color` override that Chrome respects here. */
