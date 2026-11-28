@@ -198,6 +198,19 @@ export default function MockExamsPage() {
     if (state === "active" && timeRemaining === 0) submitRef.current(true)
   }, [state, timeRemaining])
 
+  useEffect(() => {
+    if (state !== "active" || mode !== "full" || !resultIdRef.current) return
+    const timer = setTimeout(() => {
+      void request({ action: "checkpoint", attemptId: resultIdRef.current, answers }).catch(() => {
+        setBanner({
+          tone: "error",
+          text: "Answers have not been backed up. Keep this screen open and restore your connection before the deadline. Late recovery uses only answers already received by the server.",
+        })
+      })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [answers, state, mode])
+
   const toggleSubject = (subject: string) => {
     setSelectedSubjects((prev) => {
       if (prev.includes(subject)) return prev.filter((s) => s !== subject)
@@ -272,6 +285,10 @@ export default function MockExamsPage() {
       }
       setScore(result.score)
       setQuestions(result.questions)
+      if (result.timing && result.timing !== "on_time" && mode === "full")
+        setLabel(
+          "The server deadline passed. This saved score uses only answers backed up before the deadline; later answer changes were not graded.",
+        )
       setAnswers(result.answers)
       setShowCalculator(false)
       setState("results")
@@ -321,7 +338,7 @@ export default function MockExamsPage() {
         )}
 
         <p role="status" className="mb-4 text-body-sm text-muted">
-          Saved to your history.{" "}
+          Saved to your history. Formative revision scores are not institutional assessment evidence.{" "}
           {mode === "draft_review"
             ? "Draft review is excluded from learner progress totals and rewards."
             : "Your progress has been updated."}
@@ -664,7 +681,7 @@ export default function MockExamsPage() {
       <PageHeader
         eyebrow="Mock exams"
         title="Timed mocks and short revision"
-        subtitle="Choose an available question bank. Each question has one minute; these are revision activities, not official exam papers."
+        subtitle="Formative practice, not a trusted assessment or official exam paper. Full mocks enforce server deadlines; late recovery uses answers backed up before the deadline. Short revision remains flexible."
       />
 
       {banner && (

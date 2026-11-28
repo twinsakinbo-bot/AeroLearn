@@ -1,8 +1,8 @@
 {
-  "project_id": "aerolearn-integration",
+  "project_id": "aerolearn-security",
   "api": {
     "enabled": true,
-    "port": 54321,
+    "port": 59321,
     "schemas": [
       "public"
     ],
@@ -13,8 +13,8 @@
     "max_rows": 1000
   },
   "db": {
-    "port": 54322,
-    "shadow_port": 54320,
+    "port": 59322,
+    "shadow_port": 59320,
     "major_version": 17,
     "seed": {
       "enabled": false
@@ -22,9 +22,9 @@
   },
   "auth": {
     "enabled": true,
-    "site_url": "http://127.0.0.1:4322",
+    "site_url": "http://127.0.0.1:4324",
     "additional_redirect_urls": [
-      "http://127.0.0.1:4322/auth/callback"
+      "http://127.0.0.1:4324/auth/callback"
     ],
     "enable_signup": false,
     "email": {
@@ -45,5 +45,11 @@
   },
   "realtime": {
     "enabled": false
+  },
+  "local_smtp": {
+    "enabled": true,
+    "port": 59324,
+    "smtp_port": 59325,
+    "pop3_port": 59326
   }
 }

@@ -40,6 +40,7 @@ type Stats = {
   correct: number
   subjects: number
   quizzes: number
+  legacyQuizzes: number
   perfect: number
 }
 
@@ -54,6 +55,7 @@ const EMPTY: Stats = {
   subjects: 0,
   quizzes: 0,
   perfect: 0,
+  legacyQuizzes: 0,
 }
 
 /** Each badge requirement, mapped to the counter that satisfies it. */
@@ -79,27 +81,25 @@ function progressFor(type: string, stats: Stats) {
 }
 
 /**
- * Profile counters and saved quiz results. Practice writes its totals directly
+ * Profile counters and saved quiz results. Server reward operations update totals directly
  * to the profile; the old nested `studyStats` object is only initialised, never
  * incremented, so reading it showed a false zero for active students.
  */
 async function loadStats(uid: string): Promise<{ stats: Stats; history: MockResult[] }> {
-  const [profileSnap, quizSnap] = await Promise.all([
+  const token = await auth.currentUser?.getIdToken()
+  const [profileSnap, quizSnap, counts] = await Promise.all([
     getDoc(doc(db, "users", uid)),
     getDocs(query(collection(db, "quizResults"), where("userId", "==", uid))),
+    fetch("/api/gamification/reward", { headers: { Authorization: `Bearer ${token}` } }).then(
+      async (response) => {
+        if (!response.ok) throw Error("Verified quiz counts unavailable")
+        return response.json()
+      },
+    ),
   ])
 
   if (!profileSnap.exists()) throw new Error("Your progress profile is missing")
   const data = profileSnap.data()
-
-  let perfect = 0
-  let countedQuizzes = 0
-  quizSnap.forEach((result) => {
-    if (result.data().source === "mock_preview") return
-    countedQuizzes++
-    const { score = 0, totalQuestions = 0 } = result.data()
-    if (totalQuestions > 0 && score >= totalQuestions) perfect += 1
-  })
 
   const streak = dormantStreak(data, lagosDayKey())
   const attempted = Math.max(0, Number(data.totalQuestionsAnswered) || 0)
@@ -115,10 +115,12 @@ async function loadStats(uid: string): Promise<{ stats: Stats; history: MockResu
       attempted,
       correct,
       subjects: Array.isArray(data.subjectsStudied) ? new Set(data.subjectsStudied).size : 0,
-      quizzes: countedQuizzes,
-      perfect,
+      quizzes: counts.quizzes,
+      perfect: counts.perfect,
+      legacyQuizzes: counts.legacy,
     },
     history: quizSnap.docs
+      .filter((row) => counts.historyIds.includes(row.id))
       .map((row) => row.data())
       .filter((row) => ["mock_verified", "mock_preview"].includes(row.source))
       .sort((a, b) => (b.createdAt?.toDate?.()?.getTime() ?? 0) - (a.createdAt?.toDate?.()?.getTime() ?? 0))
@@ -181,6 +183,10 @@ export default function ProgressPage() {
 
       <section className="card mb-6 p-5" aria-label="Mock examination history">
         <h2 className="text-h3 font-semibold">Recent mock and revision history</h2>
+        <p className="mt-2 text-caption text-muted">
+          Quiz badges count server-verified results. Legacy history: {stats.legacyQuizzes} entries, excluded
+          from quiz badge counts.
+        </p>
         {history.length === 0 && (
           <p className="mt-3 text-body-sm text-muted">
             Completed mocks and short revision sets appear here after submission.
@@ -193,7 +199,12 @@ export default function ProgressPage() {
               {result.mode === "draft_review" ? " · Draft teacher review (excluded from totals)" : ""}
             </summary>
             <p className="mt-2 text-caption text-muted">
-              {result.totalQuestions} questions · {result.durationSeconds / 60} minutes allowed
+              {result.totalQuestions} questions · {result.durationSeconds / 60} minutes allowed ·{" "}
+              {result.assessmentType === "trusted"
+                ? result.reportEligible
+                  ? "Trusted timed assessment"
+                  : "Expired assessment: excluded from reports"
+                : "Formative revision: not institutional assessment evidence"}
             </p>
             <ol className="mt-4 space-y-5">
               {result.questions.map((q, index) => (

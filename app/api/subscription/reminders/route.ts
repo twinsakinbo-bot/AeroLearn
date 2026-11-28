@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
 import { requireSchedulerOrAdmin } from "@/lib/api-auth"
+import { getSupabaseAdmin } from "@/lib/supabase/admin"
 import { getAdminDb } from "@/lib/db-admin"
 import { emailLayout, emailParagraph, escapeHtml, MAIL_FROM } from "@/lib/email-template"
 import { studyEmailFootnote, unsubscribeHeaders, unsubscribeUrl } from "@/lib/email-unsubscribe"
@@ -42,6 +43,23 @@ export async function GET(request: Request) {
     if (await isProtectedLearner(entry.id)) continue
     if (user.role === "admin" || !user.email) continue
     const ref = db.collection("users").doc(entry.id)
+    let version = entry.__version
+    // Expiry/streak decisions came from this snapshot; never overwrite a renewal
+    // or login that committed while the reminder job was working.
+    const conditionalUpdate = async (patch: Record<string, unknown>) => {
+      const { data, error } = await getSupabaseAdmin().rpc("doc_patch", {
+        p_table: "users",
+        p_id: entry.id,
+        p_set: patch,
+        p_expected_version: version,
+        p_require_exists: true,
+      })
+      if (error?.code === "40001") return false
+      if (error) throw error
+      version = data[0].version
+      Object.assign(user, patch)
+      return true
+    }
     const name = escapeHtml(String(user.displayName || "Student"))
     const expiry = dateOf(user.proExpiresAt)
     const expiryKey = expiry?.toISOString()
@@ -49,18 +67,18 @@ export async function GET(request: Request) {
     try {
       const currentStreak = dormantStreak(user, today)
       if (currentStreak === 0 && Number(user.streak || 0) > 0) {
-        await ref.update({ streak: 0 })
+        if (!await conditionalUpdate({ streak: 0 })) continue
         streaksReset++
       }
       if (user.trustPassRequestId) {
         if (expiry && expiry.getTime() <= now && user.subscription === "pro") {
-          await ref.update({ subscription: "free", proExpiresAt: null })
+          if (!await conditionalUpdate({ subscription: "free", proExpiresAt: null })) continue
         }
         continue
       }
       if (isPaidPlan(user.subscription) && user.subscription !== "lifetime" && expiry && expiry.getTime() <= now) {
         // Access checks already deny an expired plan; this makes the profile show Free.
-        await ref.update({ subscription: "free", proExpiresAt: null, lastExpiredPlan: { plan: user.subscription, expiry: expiryKey } })
+        if (!await conditionalUpdate({ subscription: "free", proExpiresAt: null, lastExpiredPlan: { plan: user.subscription, expiry: expiryKey } })) continue
         user.lastExpiredPlan = { plan: user.subscription, expiry: expiryKey }
       }
 

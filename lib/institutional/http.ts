@@ -39,7 +39,7 @@ export async function institutionalHttp(request: Request, config: Config, factor
    const { data, error } = await client.rpc('institutional_command', {
     p_action: command.action, p_institution_id: command.institution_id, p_payload: command.payload,
    }).returns<CommandResult>()
-   if (error) return reply({ error: 'Command was not permitted or could not be completed.' }, error.code === '42501' ? 403 : 400)
+   if (error) return reply({ error: error.code === '54000' ? 'Invitation rate or school capacity limit reached.' : 'Command was not permitted or could not be completed.' }, error.code === '54000' ? 429 : error.code === '42501' ? 403 : 400)
    return reply(data)
   }
   if (request.method !== 'GET') return reply({ error: 'Method not allowed.' },405)

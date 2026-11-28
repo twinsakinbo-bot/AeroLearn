@@ -1,0 +1,265 @@
+PR #4 profile concurrency/data-integrity follow-up — synthetic data only
+
+
+LINT
+
+> aerolearn@1.0.2 lint
+> next lint
+
+`next lint` is deprecated and will be removed in Next.js 16.
+For new projects, use create-next-app to choose your preferred linter.
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+✔ No ESLint warnings or errors
+
+
+TYPES
+
+> aerolearn@1.0.2 typecheck
+> tsc --noEmit
+
+
+
+UNIT
+
+> aerolearn@1.0.2 test
+> tsx --test tests/*.test.ts
+
+✔ tutor lookup requests are parsed without exposing them as answers (1.809407ms)
+✔ expression precedence and right-associative powers (1.398379ms)
+✔ scientific functions use the chosen angle mode (0.319022ms)
+✔ invalid or unsafe input fails clearly (0.872231ms)
+✔ CBT scores normalized option letters and leaves unanswered items at zero (2.396642ms)
+✔ CBT never credits a blank response or a missing answer key (0.26366ms)
+✔ unsubscribe token belongs to one account and email address (3.073037ms)
+✔ study emails include a direct link and one-click mailbox headers (1.228999ms)
+✔ command contract rejects identity overrides, missing context and excessive personal data (1.654909ms)
+✔ disabled and unauthenticated requests never create a database client (22.136168ms)
+✔ real Supabase HTTP transport uses caller token, validates school context, sanitizes errors and disables caching (82.324959ms)
+✔ lesson sequences render as accessible maths and a real comparison table (67.557606ms)
+✔ existing dollar maths, links, prose and code samples stay intact (11.508712ms)
+✔ lesson HTML and unsafe maths links cannot inject active markup (5.55491ms)
+✔ replacement retains the lesson ID, references and creation date (1.909936ms)
+✔ a failed replacement leaves the original lesson intact (0.955825ms)
+✔ skip and import-as-new preserve existing lesson content (0.407843ms)
+✔ imports use bounded concurrency while repeated replacements keep input order (27.170824ms)
+Lesson AI attempt 1/6 failed: temporary gateway error
+Lesson AI attempt 2/6 failed: temporary gateway error
+Lesson AI attempt 3/6 failed: temporary gateway error
+Lesson AI attempt 4/6 failed: temporary gateway error
+Lesson AI attempt 5/6 failed: temporary gateway error
+Lesson AI attempt 1/6 failed: gateway unavailable
+Lesson AI attempt 2/6 failed: gateway unavailable
+Lesson AI attempt 3/6 failed: gateway unavailable
+Lesson AI attempt 4/6 failed: gateway unavailable
+Lesson AI attempt 5/6 failed: gateway unavailable
+Lesson AI attempt 6/6 failed: gateway unavailable
+Lesson AI attempt 1/6 failed: gateway failed (429)
+Lesson AI attempt 2/6 failed: gateway failed (429)
+Lesson AI attempt 3/6 failed: gateway failed (429)
+Lesson AI attempt 4/6 failed: gateway failed (429)
+Lesson AI attempt 5/6 failed: gateway failed (429)
+Lesson AI attempt 6/6 failed: gateway failed (429)
+✔ lesson AI retries five times with increasing gaps (4.10192ms)
+✔ lesson AI reports exhaustion after the sixth failure (1.700507ms)
+✔ rate limits wait longer before each retry (1.140568ms)
+✔ local staging refuses hosted, alternate and disguised endpoints (6.673146ms)
+✔ local app environment cannot inherit production credentials or Node injection (0.612546ms)
+LaTeX-incompatible input and strict mode is set to 'warn': HTML extension is disabled on strict mode [htmlExtension]
+✔ math rendering does not inherit a polluted trust setting (28.714813ms)
+✔ availability is board/subject-specific, excludes malformed and draft content (13.006122ms)
+✔ active question projection omits keys/explanations; normalization preserves draft gate (1.951508ms)
+✔ failed question replacement preserves original; successful replacement retains ID (1.445068ms)
+✔ Google and incomplete profiles must choose a purpose and subjects (5.144564ms)
+✔ completed learning setup is preserved for each learning purpose (0.252263ms)
+✔ every purchasable plan unlocks access for its duration (1.379462ms)
+✔ expired and malformed grants do not unlock paid features (0.29679ms)
+✔ a pending receipt grants a pass only to its owner when they need it (0.395646ms)
+✔ redeeming a finite code cannot replace permanent access (0.25685ms)
+✔ outbound fetch pins validated DNS, caps bodies and bounds slow streams (127.229458ms)
+✔ private, mapped, multicast and transition addresses are rejected before connecting (5.545827ms)
+✔ DNS lookup cannot outlive the overall request deadline (31.395241ms)
+✔ OAuth destinations cannot escape the application origin (1.225634ms)
+✔ independent server instances share limits and store only hashed subjects (3.10128ms)
+✔ public abuse controls fail closed on database failure or malformed responses (1.985228ms)
+✔ password reset has the same response for existing, missing and failed-delivery accounts (1.109943ms)
+✔ rejected local-limit requests cannot extend the active window (5.733594ms)
+✔ welcome mail requires a confirmed Auth email and ignores caller-selected recipients (0.8107ms)
+✔ challenge scoring uses stored answers and counts unanswered questions (1.967551ms)
+✔ challenge scoring rejects foreign, missing, and invalid question data (0.273565ms)
+✔ new service worker activation removes old private response caches (3.059227ms)
+✔ password guidance matches the hosted policy (1.795106ms)
+✔ Supabase signup errors identify the field and useful next step (1.280625ms)
+✔ Nigeria calendar day changes at midnight Lagos, not midnight UTC (1.334916ms)
+✔ one visit per day awards one day and one login reward (0.505288ms)
+✔ missed days reset the streak; one freeze covers exactly one missed day (1.293714ms)
+✔ inactive streaks become zero without login and warn on the last day (0.619547ms)
+✔ confirmation email keeps the action link and escapes the recipient (1.751792ms)
+ℹ tests 52
+ℹ suites 0
+ℹ pass 52
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3070.036186
+
+
+PLANS
+
+> aerolearn@1.0.2 test:plans
+> tsx --test tests/plan-flow.test.ts
+
+✔ every purchasable plan unlocks access for its duration (7.787665ms)
+✔ expired and malformed grants do not unlock paid features (0.213826ms)
+✔ a pending receipt grants a pass only to its owner when they need it (0.198674ms)
+✔ redeeming a finite code cannot replace permanent access (0.158945ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 491.276683
+
+
+MATH
+
+> aerolearn@1.0.2 test:math-review
+> python3 scripts/verify-mathematics-draft.py
+
+Q1: Algebra: linear equations — calculation and option C verified
+Q2: Quadratic equations — calculation and option B verified
+Q3: Algebra: direct variation — calculation and option D verified
+Q4: Plane geometry: area of a trapezium — calculation and option A verified
+Q5: Trigonometry: right-angled triangles — calculation and option C verified
+Q6: Probability: sampling without replacement — calculation and option B verified
+Q7: Statistics: arithmetic mean — calculation and option D verified
+Q8: Coordinate geometry: distance between two points — calculation and option A verified
+Answer key: C, B, D, A, C, B, D, A
+SHA-256: 00dd51de285a183ff37366c9df81bf3ce931c79b306884ef8cbc2a9c7b350240
+Eight independent calculation checks passed. Teacher approval: PENDING; publication: DRAFT.
+
+
+HTTP
+
+> aerolearn@1.0.2 test:http
+> node tests/http-security-check.mjs
+
+106 missing/invalid-token HTTP authorization checks passed.
+
+
+GUARDS
+
+> aerolearn@1.0.2 test:institutional:http
+> node tests/institutional-safeguards-http.mjs
+
+13 local production HTTP safeguard checks passed; no real accounts, provider calls or email.
+
+
+DESKTOP
+
+> aerolearn@1.0.2 desktop:check
+> npm --prefix desktop-app run build
+
+
+> build
+> tsc -p tsconfig.json && vite build
+
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 1647 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.45 kB │ gzip:  0.29 kB
+dist/assets/index-CN00Riaw.css   35.37 kB │ gzip:  7.18 kB
+dist/assets/index-tuWx6tv-.js   233.81 kB │ gzip: 72.65 kB
+
+✓ built in 346ms
+
+
+PILOT
+
+> aerolearn@1.0.2 test:pilot:e2e
+> node tests/e2e/mock-workflow.mjs
+
+1280px: unavailable bank, draft 8-question activity, answer, cancel/confirm, failed-save retry, 1/8 score, all explanations and history reload passed.
+360px: unavailable bank, draft 8-question activity, answer, cancel/confirm, failed-save retry, 1/8 score, all explanations and history reload passed.
+Browser 40-question Economics submit/review and draft timer-expiry auto-submit passed.
+40-question Economics: 40-minute timer, one answer, concurrent submissions, 1/40 score, one reward/progress update, foreign denial and independent short-mode allowance passed.
+
+
+REAL
+
+> aerolearn@1.0.2 test:integration:real
+> node tests/e2e/real-supabase-integration.mjs
+
+Stopped services: [supabase_realtime_aerolearn-security supabase_imgproxy_aerolearn-security supabase_pg_meta_aerolearn-security supabase_studio_aerolearn-security supabase_edge_runtime_aerolearn-security supabase_analytics_aerolearn-security supabase_vector_aerolearn-security supabase_pooler_aerolearn-security]
+Real PostgREST profile versions, stale CAS, verified practice, atomic login and quest claims passed.
+Real PostgREST key exposure/private denial, deadline checkpoint recovery and validated retail reward API passed.
+PASS: real local Supabase GoTrue password sign-in and getUser; PostgREST JWT/RLS; two-school isolation; teacher privilege denial and immediate revocation with same JWT; learner privacy and AI safeguards; protected mock allowance; student draft denial; real Next start/retry; 40-question scoring; concurrent exactly-once persistence; foreign attempt/result denial; progress and worked history reload at 360px/1280px.
+Synthetic data only. Hosted project creation refused by free two-project limit; no hosted preview. Mathematics remains draft.
+
+
+
+PWSH
+PowerShell syntax passed
+
+
+DB
+
+ set_config 
+------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 91000000-0000-4000-8000-000000000001
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+                                                doc_patch                                                
+---------------------------------------------------------------------------------------------------------
+ (version-note,"{""userId"": ""91000000-0000-4000-8000-000000000001"", ""content"": ""Safe update""}",2)
+(1 row)
+
+ set_config 
+------------
+ 
+(1 row)
+
+ set_config 
+------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 91000000-0000-4000-8000-000000000001
+(1 row)
+
+Profile integrity: canonical versions, CAS rejection, metadata guards, atomic login, verified practice and explicit timezone passed.
+              set_config              
+--------------------------------------
+ c0000000-0000-4000-8000-000000000001
+(1 row)
+
+Concurrent one-use invitation: one accepted, one denied, one membership and audit event.
+Concurrent invitation quota: exactly one of two competing final-slot requests accepted.
+Concurrent lesson award: two requests, one ledger event and one XP/coin update.
+Concurrent question publication: identical content cannot commit to both pools.
+Deterministic profile barriers passed: stale CAS rejected; merge preserved purchase; login/quest/challenge retries deduplicated; licence terms stacked; balances and inventory retained.
+Database migration and access checks passed.
+
+Production Next build: exited 0. No deployment was performed.
+
+LOCAL MIGRATIONS (the CLI field remote is local DB history here, not production)
+Target: local stack (127.0.0.1:59322)
+{"migrations":[{"local":"0001","remote":"0001","time":"0001"},{"local":"0002","remote":"0002","time":"0002"},{"local":"0003","remote":"0003","time":"0003"},{"local":"20261128030853","remote":"20261128030853","time":"2026-11-28 03:08:53"},{"local":"20261128032720","remote":"20261128032720","time":"2026-11-28 03:27:20"},{"local":"20261128040652","remote":"20261128040652","time":"2026-11-28 04:06:52"},{"local":"20261128120729","remote":"20261128120729","time":"2026-11-28 12:07:29"},{"local":"20261128140237","remote":"20261128140237","time":"2026-11-28 14:02:37"}],"message":"Migrations listed","target":{"kind":"local","host":"127.0.0.1","port":59322}}

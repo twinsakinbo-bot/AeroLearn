@@ -1,10 +1,11 @@
 "use client"
+import { retailReward } from "@/lib/retail-rewards"
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { auth, onAuthStateChanged } from "@/lib/auth"
-import { arrayUnion, db, doc, getDoc, increment, serverTimestamp, setDoc, updateDoc } from "@/lib/db"
+import { db, doc, getDoc, increment, serverTimestamp, setDoc, updateDoc } from "@/lib/db"
 import { Check, ChevronRight, Loader2, Trophy, X, Zap } from "lucide-react"
 
 import { EmptyState } from "@/components/ui/empty-state"
@@ -205,7 +206,7 @@ export default function PracticePage() {
       )
       if (pool.length === 0) throw new Error("None of the questions were usable.")
 
-      setQuiz({ id: crypto.randomUUID(), subject, exam, difficulty, questions: pool })
+      setQuiz({ id: data.sessionId, subject, exam, difficulty, questions: pool })
       setIndex(0)
       setAnswer(null)
       setMarked(false)
@@ -245,13 +246,7 @@ export default function PracticePage() {
       if (right) setScore((s) => s + 1)
 
       try {
-        await updateDoc(doc(db, "users", uid), {
-          xp: increment(right ? 10 : 0),
-          coins: increment(right ? 5 : 0),
-          totalQuestionsAnswered: increment(1),
-          ...(right ? { totalQuestionsCorrect: increment(1) } : {}),
-          subjectsStudied: arrayUnion(quiz.subject),
-        })
+        await retailReward("practice", { session: quiz.id, question: question.id, answer })
       } catch (error) {
         console.error("Failed to record your answer:", error)
       }
@@ -261,17 +256,22 @@ export default function PracticePage() {
         setRunning(false)
         setSavingResult(true)
         try {
-          await setDoc(doc(db, "quizResults", quiz.id), {
-            userId: uid,
-            subject: quiz.subject,
-            source: "practice",
-            score,
-            totalQuestions: quiz.questions.length,
-            createdAt: serverTimestamp(),
-          })
+          const verified = await getDoc(doc(db, "quizResults", `practice:${quiz.id}`))
+          if (!verified.exists())
+            await setDoc(doc(db, "quizResults", quiz.id), {
+              userId: uid,
+              subject: quiz.subject,
+              source: "practice",
+              score,
+              totalQuestions: quiz.questions.length,
+              createdAt: serverTimestamp(),
+            })
         } catch (error) {
           console.error("Could not save quiz result:", error)
-          setBanner({ tone: "error", text: "Your quiz score could not be saved to Progress. Check your connection before starting another quiz." })
+          setBanner({
+            tone: "error",
+            text: "Your quiz score could not be saved to Progress. Check your connection before starting another quiz.",
+          })
         } finally {
           setSavingResult(false)
           setDone(true)
@@ -359,7 +359,14 @@ export default function PracticePage() {
           backLabel="Back to setup"
         />
 
-        {banner && <p role="alert" className="mb-5 rounded-lg border border-danger/30 bg-danger/[0.06] px-4 py-3 text-body-sm text-danger">{banner.text}</p>}
+        {banner && (
+          <p
+            role="alert"
+            className="mb-5 rounded-lg border border-danger/30 bg-danger/[0.06] px-4 py-3 text-body-sm text-danger"
+          >
+            {banner.text}
+          </p>
+        )}
 
         <div className="card p-6 sm:p-8 text-center">
           <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-streak/[0.12] text-streak">
@@ -412,7 +419,9 @@ export default function PracticePage() {
         <span
           className={cn(
             "shrink-0 rounded-lg border px-3 py-1.5 text-caption font-semibold tabular-nums",
-            seconds < 60 ? "border-hairline bg-surface text-muted" : "border-accent/30 bg-accent/[0.06] text-accent",
+            seconds < 60
+              ? "border-hairline bg-surface text-muted"
+              : "border-accent/30 bg-accent/[0.06] text-accent",
           )}
         >
           {formatTime(seconds)}
@@ -446,9 +455,7 @@ export default function PracticePage() {
                   >
                     {option.letter}
                   </span>
-                  <span className="text-body-sm font-medium text-foreground">
-                    {richText(option.text)}
-                  </span>
+                  <span className="text-body-sm font-medium text-foreground">{richText(option.text)}</span>
                 </button>
               </li>
             )
@@ -458,8 +465,7 @@ export default function PracticePage() {
         {marked && question.explanation && (
           <div className="card p-4 mt-6 border-accent/30 bg-accent/[0.04]">
             <p className="text-body-sm text-muted">
-              <strong className="font-semibold text-foreground">Why:</strong>{" "}
-              {richText(question.explanation)}
+              <strong className="font-semibold text-foreground">Why:</strong> {richText(question.explanation)}
             </p>
           </div>
         )}
@@ -482,7 +488,11 @@ export default function PracticePage() {
             {marked ? (
               <>
                 <ChevronRight size={16} aria-hidden="true" />
-                {savingResult ? "Saving score…" : index + 1 < quiz.questions.length ? "Next question" : "Finish"}
+                {savingResult
+                  ? "Saving score…"
+                  : index + 1 < quiz.questions.length
+                    ? "Next question"
+                    : "Finish"}
               </>
             ) : (
               "Check answer"
@@ -521,8 +531,7 @@ function ConfigForm({
     >
       <h2 className="text-body font-semibold text-foreground">Configure your quiz</h2>
       <p className="mt-1 text-body-sm text-muted">
-        Questions follow the {exam} syllabus{classLevel ? ` at ${classLevel}` : ""}, taken from your
-        profile.{" "}
+        Questions follow the {exam} syllabus{classLevel ? ` at ${classLevel}` : ""}, taken from your profile.{" "}
         <Link href="/app/settings" className="font-semibold text-accent hover:underline">
           Change it in settings
         </Link>

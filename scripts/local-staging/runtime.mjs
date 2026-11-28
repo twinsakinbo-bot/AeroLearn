@@ -1,34 +1,21 @@
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-  cpSync,
-  readdirSync,
-} from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync, cpSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
 import { createClient } from "@supabase/supabase-js"
 import pg from "pg"
-import {
-  api,
-  site,
-  project,
-  validateStatus,
-  safeEnvironment,
-} from "./guards.mjs"
+import { api, site, project, validateStatus, safeEnvironment } from "./guards.mjs"
 const root = resolve(import.meta.dirname, "../.."),
   dir = resolve(root, ".local-staging"),
   runtime = resolve(dir, "runtime")
 process.chdir(root)
-assert.equal(
-  execFileSync("git", ["branch", "--show-current"], {
-    encoding: "utf8",
-  }).trim(),
-  "integration/p0-a-waec-staging",
-  "Use the integration branch",
+assert.ok(
+  ["integration/p0-a-waec-staging", "security/p0-a-assessment-hardening"].includes(
+    execFileSync("git", ["branch", "--show-current"], { encoding: "utf8" }).trim(),
+  ),
+  "Use an authorized local staging branch",
 )
+
 for (const name of readdirSync(root)) {
   if (/^\.env($|\.)/.test(name) && name !== ".env.example")
     throw Error("Use a fresh checkout without environment files: " + name)
@@ -74,30 +61,19 @@ if (action === "init") {
     edge_runtime: { enabled: false },
     realtime: { enabled: false },
   }
-  writeFileSync(
-    resolve(runtime, "supabase/config.jsonc"),
-    JSON.stringify(config, null, 2) + "\n",
-  )
+  writeFileSync(resolve(runtime, "supabase/config.jsonc"), JSON.stringify(config, null, 2) + "\n")
   cpSync("supabase/migrations", resolve(runtime, "supabase/migrations"), {
     recursive: true,
   })
   console.log("Prepared isolated runtime " + runtime)
   process.exit(0)
 }
-assert.ok(
-  existsSync(resolve(runtime, "supabase/config.jsonc")),
-  "Run Setup first",
-)
-const config = JSON.parse(
-  readFileSync(resolve(runtime, "supabase/config.jsonc"), "utf8"),
-)
+assert.ok(existsSync(resolve(runtime, "supabase/config.jsonc")), "Run Setup first")
+const config = JSON.parse(readFileSync(resolve(runtime, "supabase/config.jsonc"), "utf8"))
 assert.equal(config.project_id, project)
 assert.equal(config.api.port, 55421)
 assert.equal(config.db.port, 55422)
-assert.ok(
-  !existsSync(resolve(runtime, "supabase/.temp/project-ref")),
-  "Hosted links are prohibited",
-)
+assert.ok(!existsSync(resolve(runtime, "supabase/.temp/project-ref")), "Hosted links are prohibited")
 const cfg = validateStatus(
   JSON.parse(
     execFileSync(
@@ -110,18 +86,10 @@ const cfg = validateStatus(
 if (action === "start") {
   const child = spawn(
     process.execPath,
-    [
-      "node_modules/next/dist/bin/next",
-      "dev",
-      "--hostname",
-      "127.0.0.1",
-      "--port",
-      "4323",
-    ],
+    ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", "4323"],
     { stdio: "inherit", env: safeEnvironment(process.env, cfg) },
   )
-  for (const signal of ["SIGINT", "SIGTERM"])
-    process.on(signal, () => child.kill(signal))
+  for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => child.kill(signal))
   child.on("exit", (code) => process.exit(code || 0))
 } else if (action === "seed") {
   const pool = new pg.Pool({ connectionString: cfg.DB_URL })
@@ -134,9 +102,7 @@ if (action === "start") {
       if (r.error) throw Error(r.error.message)
       return r.data
     }
-    const previous = ok(
-      await admin.auth.admin.listUsers({ perPage: 1000 }),
-    ).users
+    const previous = ok(await admin.auth.admin.listUsers({ perPage: 1000 })).users
     for (const role of [
       "operator",
       "schoolAdminA",
@@ -159,21 +125,18 @@ if (action === "start") {
               email_confirm: true,
             }),
       ).user
-      await pool.query(
-        `update public.users set data=data || $2::jsonb where id=$1`,
-        [
-          user.id,
-          JSON.stringify({
-            role: role === "operator" ? "admin" : "student",
-            displayName: "Synthetic " + role,
-            onboardingCompleted: true,
-            studyEmailsEnabled: false,
-            learningMode: "exam",
-            examType: "WAEC",
-            subjects: ["Economics"],
-          }),
-        ],
-      )
+      await pool.query(`update public.users set data=data || $2::jsonb where id=$1`, [
+        user.id,
+        JSON.stringify({
+          role: role === "operator" ? "admin" : "student",
+          displayName: "Synthetic " + role,
+          onboardingCompleted: true,
+          studyEmailsEnabled: false,
+          learningMode: "exam",
+          examType: "WAEC",
+          subjects: ["Economics"],
+        }),
+      ])
       accounts[role] = { email, password, id: user.id }
     }
     await pool.query("update institutional_private.controls set enabled=true")
@@ -190,16 +153,15 @@ if (action === "start") {
       ).rows[0]?.id
       if (!org)
         org = (
-          await pool.query(
-            "insert into public.institutions(name) values($1) returning id",
-            ["LOCAL SYNTHETIC SCHOOL " + school],
-          )
+          await pool.query("insert into public.institutions(name) values($1) returning id", [
+            "LOCAL SYNTHETIC SCHOOL " + school,
+          ])
         ).rows[0].id
       let cohort = (
-        await pool.query(
-          "select id from public.school_cohorts where institution_id=$1 and name=$2",
-          [org, "Synthetic SS3"],
-        )
+        await pool.query("select id from public.school_cohorts where institution_id=$1 and name=$2", [
+          org,
+          "Synthetic SS3",
+        ])
       ).rows[0]?.id
       if (!cohort)
         cohort = (
@@ -227,10 +189,11 @@ if (action === "start") {
             [actor.id],
           )
         if (role !== "school_admin")
-          await pool.query(
-            "insert into public.cohort_memberships values($1,$2,$3) on conflict do nothing",
-            [org, cohort, member],
-          )
+          await pool.query("insert into public.cohort_memberships values($1,$2,$3) on conflict do nothing", [
+            org,
+            cohort,
+            member,
+          ])
         members[key] = member
       }
       schools[school] = { institution_id: org, cohort_id: cohort, members }
@@ -272,11 +235,9 @@ if (action === "start") {
       ),
       { mode: 0o600 },
     )
-    writeFileSync(
-      resolve(dir, "environment.json"),
-      JSON.stringify(safeEnvironment({}, cfg), null, 2),
-      { mode: 0o600 },
-    )
+    writeFileSync(resolve(dir, "environment.json"), JSON.stringify(safeEnvironment({}, cfg), null, 2), {
+      mode: 0o600,
+    })
     console.log(
       "Synthetic schools/accounts ready. Passwords: .local-staging/accounts.json. Environment: .local-staging/environment.json. Mathematics drafts remain excluded.",
     )

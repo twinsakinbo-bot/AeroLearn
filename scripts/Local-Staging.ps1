@@ -10,7 +10,7 @@ function Run-Checked {
     if ($LASTEXITCODE -ne 0) { throw "$Program failed (exit $LASTEXITCODE)." }
 }
 $Branch = (& git branch --show-current).Trim()
-if ($LASTEXITCODE -ne 0 -or $Branch -ne 'integration/p0-a-waec-staging') { throw 'Use integration/p0-a-waec-staging in a dedicated checkout.' }
+if ($LASTEXITCODE -ne 0 -or $Branch -notin @('integration/p0-a-waec-staging','security/p0-a-assessment-hardening')) { throw 'Use the integration or security hardening branch in a dedicated checkout.' }
 $EnvFiles = @(Get-ChildItem -Force -File | Where-Object { $_.Name -match '^\.env($|\.)' -and $_.Name -ne '.env.example' })
 if ($EnvFiles.Count -gt 0) { throw 'Use a fresh dedicated checkout without .env files. Do not copy production credentials.' }
 if (Test-Path 'supabase/.temp/project-ref') { throw 'This checkout is linked to a hosted Supabase project. Use a fresh checkout.' }
@@ -45,6 +45,8 @@ if ($Action -in @('Setup','Start')) {
 }
 Run-Checked $Node @('scripts/local-staging/runtime.mjs','check')
 if ($Action -eq 'Setup') {
+    # Local default only, after endpoint/link checks. Never use --remote.
+    Run-Checked $Cli @('--workdir',$Runtime,'migration','up')
     Run-Checked $Node @('scripts/local-staging/runtime.mjs','seed')
     if ($env:OS -eq 'Windows_NT') {
         $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name

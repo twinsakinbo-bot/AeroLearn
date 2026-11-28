@@ -32,6 +32,7 @@
  * always `{A,B,C,D}` and `correctAnswer` is always a letter no matter what the
  * model returned.
  */
+import { getSupabaseAdmin } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "@/lib/ai-provider"
 
@@ -53,7 +54,10 @@ const MAX_QUESTIONS = 20
 const ROW_KEYS = ["questions", "quiz", "items", "data", "results"]
 
 /** Trimmed so a long body cannot be used to run up a bill. */
-const cap = (value: unknown, limit: number) => String(value ?? "").trim().slice(0, limit)
+const cap = (value: unknown, limit: number) =>
+  String(value ?? "")
+    .trim()
+    .slice(0, limit)
 
 const SYSTEM =
   "You are an examiner writing multiple-choice questions for Nigerian secondary " +
@@ -79,11 +83,7 @@ type QuizQuestion = {
  * is dropped: a question with one option or no marked answer is unanswerable, and
  * shipping it to the student is worse than shipping nineteen questions.
  */
-function toQuestion(
-  row: Record<string, unknown>,
-  index: number,
-  subject: string,
-): QuizQuestion | null {
+function toQuestion(row: Record<string, unknown>, index: number, subject: string): QuizQuestion | null {
   const stored = row as StoredQuestion
   const question = questionText(stored)
   const options = optionsOf(stored)
@@ -229,10 +229,7 @@ export async function POST(req: Request) {
         .filter((question): question is QuizQuestion => question !== null)
 
       if (questions.length > 0) break
-      console.error(
-        `ai-quiz: nothing usable in the reply (jsonMode=${jsonMode}):`,
-        reply.slice(0, 500),
-      )
+      console.error(`ai-quiz: nothing usable in the reply (jsonMode=${jsonMode}):`, reply.slice(0, 500))
     }
 
     if (questions.length === 0) {
@@ -244,12 +241,18 @@ export async function POST(req: Request) {
 
     const consumed = await freeGenerationGate(gate.uid, "practice", true)
     if (consumed) return consumed
-    return NextResponse.json({ questions })
+    const sessionId = crypto.randomUUID()
+    // Server-owned formative snapshot. It is never trusted assessment content.
+    questions = questions.map((q, index) => ({ ...q, id: `q${index + 1}` }))
+    const registered = await getSupabaseAdmin().rpc("register_practice_session", {
+      p_uid: gate.uid,
+      p_id: sessionId,
+      p_questions: questions,
+    })
+    if (registered.error) throw registered.error
+    return NextResponse.json({ questions, sessionId })
   } catch (error) {
     console.error("AI Quiz Error:", error)
-    return NextResponse.json(
-      { error: "Failed to generate questions. Please try again." },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Failed to generate questions. Please try again." }, { status: 500 })
   }
 }

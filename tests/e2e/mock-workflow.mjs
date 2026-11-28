@@ -192,6 +192,17 @@ try {
             args.p_request_id,
           ])
         ).rows[0].result
+      else if (url.pathname === "/rest/v1/rpc/verified_quiz_counts")
+        result = (await conn.query("select public.verified_quiz_counts($1) as result", [args.p_uid])).rows[0]
+          .result
+      else if (url.pathname === "/rest/v1/rpc/checkpoint_mock_attempt")
+        result = (
+          await conn.query("select public.checkpoint_mock_attempt($1,$2,$3) as result", [
+            args.p_uid,
+            args.p_attempt,
+            JSON.stringify(args.p_answers),
+          ])
+        ).rows[0].result
       else if (url.pathname === "/rest/v1/rpc/submit_mock_attempt")
         result = (
           await conn.query("select public.submit_mock_attempt($1,$2,$3) as result", [
@@ -428,9 +439,29 @@ try {
   await economicsPage.getByRole("button", { name: "Start exam", exact: true }).click()
   await economicsPage.getByText("Question 1 of 40", { exact: false }).waitFor()
   await economicsPage.getByRole("button", { name: "A Correct", exact: true }).click()
+  // Freeze the last acknowledged checkpoint, then simulate a server deadline
+  // passing while the browser clock still shows time. Later edits must not score.
+  let backedUp
+  for (let i = 0; i < 100; i++) {
+    backedUp = (
+      await pool.query(
+        "select id,checkpoint from mock_private.attempts where user_id=$1 and mode='full' order by started_at desc limit 1",
+        [reviewer],
+      )
+    ).rows[0]
+    if (Object.values(backedUp.checkpoint).includes("A")) break
+    await delay(100)
+  }
+  assert.ok(Object.values(backedUp.checkpoint).includes("A"), "Server answer checkpoint was not saved")
+  await pool.query(
+    "update mock_private.attempts set started_at=clock_timestamp()-duration_seconds*interval '1 second'-interval '10 seconds' where id=$1",
+    [backedUp.id],
+  )
+  await economicsPage.getByRole("button", { name: "B Distractor 1", exact: true }).click()
   await economicsPage.getByRole("button", { name: "Submit exam", exact: true }).click()
   await economicsPage.getByRole("button", { name: "Confirm submission" }).click()
   await economicsPage.getByRole("heading", { name: "1 of 40 correct" }).waitFor()
+  await economicsPage.getByText("The server deadline passed.", { exact: false }).waitFor()
   assert.equal(
     await economicsPage
       .getByText("A worked explanation is not available for this imported question.", { exact: false })
