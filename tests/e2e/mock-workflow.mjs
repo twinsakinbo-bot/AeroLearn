@@ -192,6 +192,9 @@ try {
             args.p_request_id,
           ])
         ).rows[0].result
+      else if (url.pathname === "/rest/v1/rpc/verified_quiz_counts")
+        result = (await conn.query("select public.verified_quiz_counts($1) as result", [args.p_uid])).rows[0]
+          .result
       else if (url.pathname === "/rest/v1/rpc/checkpoint_mock_attempt")
         result = (
           await conn.query("select public.checkpoint_mock_attempt($1,$2,$3) as result", [

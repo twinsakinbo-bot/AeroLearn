@@ -345,6 +345,48 @@ try {
         .eq("id", actors.adminB.id)
     ).error,
   )
+  const practiceResult = ok(
+    await actors.adminB.client.from("quiz_results").select("data").eq("id", `practice:${sessionId}`).single(),
+  ).data
+  assert.equal(practiceResult.source, "practice_verified")
+  assert.equal(practiceResult.score, 1)
+  const oldVersion = ok(
+    await admin.from("users").select("version").eq("id", actors.adminB.id).single(),
+  ).version
+  const logins = await Promise.all([
+    request("adminB", "/api/gamification/login", {}),
+    request("adminB", "/api/gamification/login", {}),
+  ])
+  assert.equal(logins.filter((x) => x.body.updated).length, 1)
+  const stale = await admin.rpc("doc_patch", {
+    p_table: "users",
+    p_id: actors.adminB.id,
+    p_set: { coins: 0 },
+    p_expected_version: oldVersion,
+    p_require_exists: true,
+  })
+  assert.equal(stale.error?.code, "40001")
+  assert.ok(
+    (await actors.adminB.client.from("users").update({ version: 1 }).eq("id", actors.adminB.id)).error,
+  )
+  await pool.query(
+    "insert into mock_private.reward_events(user_id,event_key,xp,coins) values($1,'real-quest-eligibility',50,0)",
+    [actors.adminB.id],
+  )
+  const claims = await Promise.all([
+    request("adminB", "/api/gamification/claim", { type: "xp", tier: 1 }),
+    request("adminB", "/api/gamification/claim", { type: "xp", tier: 1 }),
+  ])
+  assert.ok(claims.every((x) => x.status === 200))
+  assert.equal(claims.filter((x) => x.body.duplicate).length, 1)
+  assert.equal(
+    ok(await actors.adminB.client.from("users").select("data").eq("id", actors.adminB.id).single()).data
+      .coins,
+    35,
+  )
+  console.log(
+    "Real PostgREST profile versions, stale CAS, verified practice, atomic login and quest claims passed.",
+  )
   console.log(
     "Real PostgREST key exposure/private denial, deadline checkpoint recovery and validated retail reward API passed.",
   )

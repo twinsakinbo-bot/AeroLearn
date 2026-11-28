@@ -1,74 +1,24 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getSupabaseAdmin } from "@/lib/supabase/admin"
+import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/api-auth"
-import { getAdminDb } from "@/lib/db-admin"
-
-export async function POST(req: NextRequest) {
-  const gate = await requireUser(req)
+import { getSupabaseAdmin } from "@/lib/supabase/admin"
+export async function POST(request: Request) {
+  const gate = await requireUser(request)
   if (!gate.ok) return gate.response
-  const uid = gate.uid
-  try {
-    const body = await req.json()
-    const type = body.type // 'xp' or 'lessons'
-
-    if (type !== "xp" && type !== "lessons") {
-      return NextResponse.json({ error: "Invalid claim type" }, { status: 400 })
-    }
-
-    const db = getAdminDb()
-    const userRef = db.collection("users").doc(uid)
-
-    const result = await db.runTransaction(async (transaction) => {
-      const userDoc = await transaction.get(userRef)
-      if (!userDoc.exists) {
-        throw new Error("User does not exist")
-      }
-
-      const data = userDoc.data()!
-      const verified = await getSupabaseAdmin().rpc("verified_reward_totals", { p_uid: uid })
-      if (verified.error) throw verified.error
-      const xp = verified.data.xp
-      const completedLessons = verified.data.lessons
-      const quests = data.quests || { xpTier: 1, lessonsTier: 1 }
-
-      const xpTarget = quests.xpTier * 50
-      const lessonsTarget = quests.lessonsTier * 5
-
-      let rewardCoins = 0
-      const newQuests = { ...quests }
-
-      if (type === "xp") {
-        if (xp < xpTarget) {
-          throw new Error("XP target not met")
-        }
-        rewardCoins = quests.xpTier * 20
-        newQuests.xpTier += 1
-      } else {
-        if (completedLessons < lessonsTarget) {
-          throw new Error("Lessons target not met")
-        }
-        rewardCoins = quests.lessonsTier * 30
-        newQuests.lessonsTier += 1
-      }
-
-      const newCoins = (data.coins || 0) + rewardCoins
-
-      transaction.update(userRef, {
-        quests: newQuests,
-        coins: newCoins,
-      })
-
-      return {
-        success: true,
-        quests: newQuests,
-        coins: newCoins,
-        reward: rewardCoins,
-      }
-    })
-
-    return NextResponse.json(result)
-  } catch (error: any) {
-    console.error("Claim Gamification Error:", error)
-    return NextResponse.json({ error: "Could not save your progress. Please try again." }, { status: 500 })
-  }
+  const body = await request.json().catch(() => null)
+  if (
+    !["xp", "lessons"].includes(body?.type) ||
+    (body.tier !== undefined && (!Number.isInteger(body.tier) || body.tier < 1 || body.tier > 100000))
+  )
+    return NextResponse.json({ error: "Invalid quest claim" }, { status: 400 })
+  const { data, error } = await getSupabaseAdmin().rpc("claim_quest_reward", {
+    p_uid: gate.uid,
+    p_type: body.type,
+    p_tier: body.tier ?? null,
+  })
+  if (error)
+    return NextResponse.json(
+      { error: "Quest target not met or claim could not be saved." },
+      { status: error.code === "22023" ? 400 : 409 },
+    )
+  return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } })
 }

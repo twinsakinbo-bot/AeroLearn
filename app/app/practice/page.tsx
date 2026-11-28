@@ -256,14 +256,16 @@ export default function PracticePage() {
         setRunning(false)
         setSavingResult(true)
         try {
-          await setDoc(doc(db, "quizResults", quiz.id), {
-            userId: uid,
-            subject: quiz.subject,
-            source: "practice",
-            score,
-            totalQuestions: quiz.questions.length,
-            createdAt: serverTimestamp(),
-          })
+          const verified = await getDoc(doc(db, "quizResults", `practice:${quiz.id}`))
+          if (!verified.exists())
+            await setDoc(doc(db, "quizResults", quiz.id), {
+              userId: uid,
+              subject: quiz.subject,
+              source: "practice",
+              score,
+              totalQuestions: quiz.questions.length,
+              createdAt: serverTimestamp(),
+            })
         } catch (error) {
           console.error("Could not save quiz result:", error)
           setBanner({

@@ -39,3 +39,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Reward service unavailable" }, { status: 503 })
   }
 }
+
+/** Badge counts come from private scoring records, never a legacy source label. */
+export async function GET(request: Request) {
+  const gate = await requireUser(request)
+  if (!gate.ok) return gate.response
+  const { data, error } = await getSupabaseAdmin().rpc("verified_quiz_counts", { p_uid: gate.uid })
+  if (error) return NextResponse.json({ error: "Could not load verified quiz counts." }, { status: 503 })
+  return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } })
+}

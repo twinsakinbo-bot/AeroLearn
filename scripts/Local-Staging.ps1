@@ -45,6 +45,8 @@ if ($Action -in @('Setup','Start')) {
 }
 Run-Checked $Node @('scripts/local-staging/runtime.mjs','check')
 if ($Action -eq 'Setup') {
+    # Local default only, after endpoint/link checks. Never use --remote.
+    Run-Checked $Cli @('--workdir',$Runtime,'migration','up')
     Run-Checked $Node @('scripts/local-staging/runtime.mjs','seed')
     if ($env:OS -eq 'Windows_NT') {
         $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
