@@ -6,7 +6,7 @@ import rehypeKatex from "rehype-katex"
 import { normalizeMathDelimiters } from "../../lib/learning-markdown"
 
 const remarkPlugins = [remarkGfm, remarkMath]
-const rehypePlugins = [rehypeKatex]
+const rehypePlugins: [typeof rehypeKatex, { trust: boolean }][] = [[rehypeKatex, { trust: false }]]
 
 const components: Components = {
   table: ({ children }) => createElement("div", {

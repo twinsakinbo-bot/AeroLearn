@@ -1,8 +1,9 @@
 "use client"
+import { retailReward } from "@/lib/retail-rewards"
 
 import { useEffect, useState } from "react"
 import { auth, onAuthStateChanged } from "@/lib/auth"
-import { db, doc, getDoc, runTransaction, updateDoc } from "@/lib/db"
+import { db, doc, getDoc, updateDoc } from "@/lib/db"
 import { AlertCircle, Check, Coins, Loader2, ShoppingBag } from "lucide-react"
 
 import { EmptyState } from "@/components/ui/empty-state"
@@ -19,38 +20,14 @@ import {
 } from "@/lib/store-items"
 import { cn } from "@/lib/utils"
 
-/**
- * Spending Aero coins.
- *
- * The catalogue now lives in `lib/store-items.ts`, which records why six of the
- * twelve items it used to list are gone: they were sold for coins and wired to
- * nothing.
- *
- * Buying was a read-modify-write — `coins: balance - price`, where `balance` was
- * read once when the page loaded. Any coins earned in another tab meanwhile were
- * wiped, and two quick purchases could each subtract from the same starting
- * figure. It is a transaction now: the balance is re-read from the server inside
- * it, and the purchase is refused if the student is short or already owns the
- * item. Note that this is still client code — only Firestore rules can stop a
- * hand-written request, and the collection needs a rule that forbids a client
- * raising its own `coins`.
- *
- * The success and failure toast was a fixed emerald or red bar in the corner
- * with no ARIA role; it is an in-page banner that announces itself. Each item
- * carried its own two-colour gradient and an emoji badge, which is where most
- * of the visual noise came from — one accent chip now, and the price does the
- * talking.
- */
+/** Purchases are validated and committed by the server; equipment selection is a display preference. */
 
 type Banner = { tone: "success" | "error"; text: string }
 
 const FILTER_TABS = STORE_FILTERS.map((value) => ({
   value,
   label: value,
-  count:
-    value === "All"
-      ? STORE_ITEMS.length
-      : STORE_ITEMS.filter((item) => item.category === value).length,
+  count: value === "All" ? STORE_ITEMS.length : STORE_ITEMS.filter((item) => item.category === value).length,
 }))
 
 export default function StorePage() {
@@ -102,23 +79,7 @@ export default function StorePage() {
     try {
       /* Read and write in one transaction, so the price comes off whatever the
          balance actually is at that moment rather than what this page last saw. */
-      const left = await runTransaction(db, async (transaction) => {
-        const ref = doc(db, "users", uid)
-        const snap = await transaction.get(ref)
-        if (!snap.exists()) throw new Error("We could not find your account.")
-
-        const data = snap.data()
-        const coins: number = data.coins ?? 0
-        const owned: string[] = data.inventory ?? []
-
-        if (owned.includes(item.id)) throw new Error(`You already have the ${item.name}.`)
-        if (coins < item.price) {
-          throw new Error(`That is ${(item.price - coins).toLocaleString()} coins more than you have.`)
-        }
-
-        transaction.update(ref, { coins: coins - item.price, inventory: [...owned, item.id] })
-        return coins - item.price
-      })
+      const { balance: left } = await retailReward("purchase", { item: item.id })
 
       setBalance(left)
       setInventory((owned) => (owned.includes(item.id) ? owned : [...owned, item.id]))
@@ -303,8 +264,8 @@ export default function StorePage() {
           </li>
         </ul>
         <p className="mt-3 border-t border-hairline pt-3 text-caption text-subtle">
-          Lessons, mock exams and challenges all need material in the library, which is still being
-          loaded. Practice does not, so it is the quickest way to earn today.
+          Lessons, mock exams and challenges all need material in the library, which is still being loaded.
+          Practice does not, so it is the quickest way to earn today.
         </p>
       </div>
     </div>

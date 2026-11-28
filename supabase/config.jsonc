@@ -1,0 +1,55 @@
+{
+  "project_id": "aerolearn-security",
+  "api": {
+    "enabled": true,
+    "port": 59321,
+    "schemas": [
+      "public"
+    ],
+    "extra_search_path": [
+      "public",
+      "extensions"
+    ],
+    "max_rows": 1000
+  },
+  "db": {
+    "port": 59322,
+    "shadow_port": 59320,
+    "major_version": 17,
+    "seed": {
+      "enabled": false
+    }
+  },
+  "auth": {
+    "enabled": true,
+    "site_url": "http://127.0.0.1:4324",
+    "additional_redirect_urls": [
+      "http://127.0.0.1:4324/auth/callback"
+    ],
+    "enable_signup": false,
+    "email": {
+      "enabled": true
+    }
+  },
+  "studio": {
+    "enabled": false
+  },
+  "analytics": {
+    "enabled": false
+  },
+  "storage": {
+    "enabled": true
+  },
+  "edge_runtime": {
+    "enabled": false
+  },
+  "realtime": {
+    "enabled": false
+  },
+  "local_smtp": {
+    "enabled": true,
+    "port": 59324,
+    "smtp_port": 59325,
+    "pop3_port": 59326
+  }
+}

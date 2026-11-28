@@ -20,5 +20,14 @@
       "path": "/api/automation/status-email",
       "schedule": "0 23 * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "feat/institutional-mvp": false,
+      "feat/waec-pilot-readiness": false,
+      "integration/p0-a-waec-staging": false,
+      "security/p0-a-assessment-hardening": false,
+      "feat/p0-b-institutional-licensing": false
+    }
+  }
 }

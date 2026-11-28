@@ -182,7 +182,7 @@ export default function DashboardPage() {
       const res = await fetch("/api/gamification/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ type, tier: profile?.quests?.[type === "xp" ? "xpTier" : "lessonsTier"] || 1 }),
       })
       const result = await res.json()
       if (!result.success) {

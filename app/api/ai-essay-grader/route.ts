@@ -1,3 +1,4 @@
+import { denyProtectedLearner } from '@/lib/institutional/safeguards'
 import { NextResponse } from "next/server"
 import { aiKey, aiModel, aiVisionModel, chatCompletion, transcribeAudio } from "@/lib/ai-provider"
 
@@ -35,6 +36,8 @@ export async function POST(req: Request) {
   }
 
   try {
+    const blocked = await denyProtectedLearner(uid)
+    if (blocked) return blocked
     const profile = await getAdminDb().collection("users").doc(uid).get()
     if (!isProUser(profile.data())) {
       return NextResponse.json(

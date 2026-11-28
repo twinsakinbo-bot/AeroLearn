@@ -85,3 +85,11 @@ pids
 
 .next/
 public/downloads/*.exe
+
+# Local test output and Supabase cache
+supabase/.temp/
+playwright-report/
+test-results/
+
+# Isolated local acceptance credentials and Supabase runtime
+.local-staging/

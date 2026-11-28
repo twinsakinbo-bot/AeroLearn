@@ -31,6 +31,7 @@ export interface PracticeQuestion {
   explanation?: string
   paper?: string
   difficulty?: Difficulty
+  publicationStatus?: "draft" | "approved"
   source?: string
   /** Admin audit metadata; never affects the answer or question shown to students. */
   aiReviewStatus?: "clear" | "needs-review" | "edited"

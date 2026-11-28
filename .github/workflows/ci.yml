@@ -9,6 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: bash tests/run-database-tests.sh
 
   web:
@@ -23,9 +26,21 @@ jobs:
       - run: npm audit --audit-level=critical
       - run: npm run lint
       - run: npm run typecheck
+      - name: Parse Windows staging scripts
+        shell: pwsh
+        run: |
+          foreach ($file in @('scripts/Local-Staging.ps1', 'scripts/Invoke-LocalStagingApi.ps1')) {
+            $errors = $null
+            $tokens = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { $errors | Format-List; throw "PowerShell parse failed: $file" }
+          }
       - run: npm test
+      - run: npm run test:math-review
       - run: npm run build
       - run: npm run test:http
+      - run: npm run test:institutional:http
+      - run: node tests/mock-start-preflight-http.mjs
 
   desktop:
     runs-on: ubuntu-latest
@@ -41,3 +56,42 @@ jobs:
           cache-dependency-path: desktop-app/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  pilot-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:pilot:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-pilot-browser-evidence
+          path: docs/evidence/pilot/
+
+  real-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx --yes supabase@3.4.0 start -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - run: npm run test:integration:real
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-supabase-integration-evidence
+          path: |
+            docs/evidence/integration/
+            docs/evidence/licensing/
+      - run: npx --yes supabase@3.4.0 stop
+        if: always()

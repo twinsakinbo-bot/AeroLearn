@@ -1,0 +1,2 @@
+PASS: real local Supabase GoTrue password sign-in and getUser; PostgREST JWT/RLS; two-school isolation; teacher privilege denial and immediate revocation with same JWT; learner privacy and AI safeguards; protected mock allowance; student draft denial; real Next start/retry; 40-question scoring; concurrent exactly-once persistence; foreign attempt/result denial; progress and worked history reload at 360px/1280px.
+Synthetic data only. Hosted project creation refused by free two-project limit; no hosted preview. Mathematics remains draft.

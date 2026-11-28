@@ -42,7 +42,7 @@ begin
   end if;
 
   if exists (select 1 from pg_policies where schemaname = 'public'
-      and tablename = 'messages' and cmd in ('UPDATE', 'ALL'))
+      and tablename = 'messages' and permissive = 'PERMISSIVE' and cmd in ('UPDATE', 'ALL'))
     or not exists (select 1 from pg_trigger where tgname = 'conversations_membership_guard'
       and tgenabled = 'O') then
     raise exception 'Chat message or membership guard is missing';
@@ -50,7 +50,7 @@ begin
 
   if exists (
     select 1 from pg_policies where schemaname = 'public' and tablename = 'challenge_results'
-      and cmd in ('INSERT', 'UPDATE', 'ALL')
+      and permissive = 'PERMISSIVE' and cmd in ('INSERT', 'UPDATE', 'ALL')
   ) then raise exception 'Client challenge result writes are still enabled'; end if;
 end $$;
 rollback;

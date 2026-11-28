@@ -14,6 +14,9 @@ import { StatCard } from "@/components/ui/stat-card"
 import { BADGES } from "@/lib/constants"
 import { dormantStreak, lagosDayKey } from "@/lib/streak"
 import { cn } from "@/lib/utils"
+import type { MockResult } from "@/lib/mock-exams"
+import { richText } from "@/lib/rich-text"
+import { optionsOf } from "@/lib/questions"
 
 /**
  * Everything the app actually knows about a student's effort, in one place.
@@ -37,6 +40,7 @@ type Stats = {
   correct: number
   subjects: number
   quizzes: number
+  legacyQuizzes: number
   perfect: number
 }
 
@@ -51,6 +55,7 @@ const EMPTY: Stats = {
   subjects: 0,
   quizzes: 0,
   perfect: 0,
+  legacyQuizzes: 0,
 }
 
 /** Each badge requirement, mapped to the counter that satisfies it. */
@@ -76,40 +81,50 @@ function progressFor(type: string, stats: Stats) {
 }
 
 /**
- * Profile counters and saved quiz results. Practice writes its totals directly
+ * Profile counters and saved quiz results. Server reward operations update totals directly
  * to the profile; the old nested `studyStats` object is only initialised, never
  * incremented, so reading it showed a false zero for active students.
  */
-async function loadStats(uid: string): Promise<Stats> {
-  const [profileSnap, quizSnap] = await Promise.all([
+async function loadStats(uid: string): Promise<{ stats: Stats; history: MockResult[] }> {
+  const token = await auth.currentUser?.getIdToken()
+  const [profileSnap, quizSnap, counts] = await Promise.all([
     getDoc(doc(db, "users", uid)),
     getDocs(query(collection(db, "quizResults"), where("userId", "==", uid))),
+    fetch("/api/gamification/reward", { headers: { Authorization: `Bearer ${token}` } }).then(
+      async (response) => {
+        if (!response.ok) throw Error("Verified quiz counts unavailable")
+        return response.json()
+      },
+    ),
   ])
 
   if (!profileSnap.exists()) throw new Error("Your progress profile is missing")
   const data = profileSnap.data()
-
-  let perfect = 0
-  quizSnap.forEach((result) => {
-    const { score = 0, totalQuestions = 0 } = result.data()
-    if (totalQuestions > 0 && score >= totalQuestions) perfect += 1
-  })
 
   const streak = dormantStreak(data, lagosDayKey())
   const attempted = Math.max(0, Number(data.totalQuestionsAnswered) || 0)
   const correct = Math.min(attempted, Math.max(0, Number(data.totalQuestionsCorrect) || 0))
 
   return {
-    xp: data.xp || 0,
-    coins: data.coins || 0,
-    streak,
-    bestStreak: Math.max(streak, data.longestStreak || 0),
-    lessons: Array.isArray(data.completedLessons) ? data.completedLessons.length : 0,
-    attempted,
-    correct,
-    subjects: Array.isArray(data.subjectsStudied) ? new Set(data.subjectsStudied).size : 0,
-    quizzes: quizSnap.size,
-    perfect,
+    stats: {
+      xp: data.xp || 0,
+      coins: data.coins || 0,
+      streak,
+      bestStreak: Math.max(streak, data.longestStreak || 0),
+      lessons: Array.isArray(data.completedLessons) ? data.completedLessons.length : 0,
+      attempted,
+      correct,
+      subjects: Array.isArray(data.subjectsStudied) ? new Set(data.subjectsStudied).size : 0,
+      quizzes: counts.quizzes,
+      perfect: counts.perfect,
+      legacyQuizzes: counts.legacy,
+    },
+    history: quizSnap.docs
+      .filter((row) => counts.historyIds.includes(row.id))
+      .map((row) => row.data())
+      .filter((row) => ["mock_verified", "mock_preview"].includes(row.source))
+      .sort((a, b) => (b.createdAt?.toDate?.()?.getTime() ?? 0) - (a.createdAt?.toDate?.()?.getTime() ?? 0))
+      .slice(0, 10) as MockResult[],
   }
 }
 
@@ -118,6 +133,7 @@ export default function ProgressPage() {
   const [stats, setStats] = useState<Stats>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [history, setHistory] = useState<MockResult[]>([])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -126,7 +142,9 @@ export default function ProgressPage() {
         return
       }
       try {
-        setStats(await loadStats(user.uid))
+        const loaded = await loadStats(user.uid)
+        setStats(loaded.stats)
+        setHistory(loaded.history)
         setLoadError(false)
       } catch (err) {
         console.error("Failed to load progress:", err)
@@ -139,7 +157,16 @@ export default function ProgressPage() {
   }, [router])
 
   if (loading) return <LoadingState full text="Loading your progress…" />
-  if (loadError) return <div className="card p-6" role="alert">We could not load your progress. <button type="button" className="link-inline" onClick={() => window.location.reload()}>Try again</button>.</div>
+  if (loadError)
+    return (
+      <div className="card p-6" role="alert">
+        We could not load your progress.{" "}
+        <button type="button" className="link-inline" onClick={() => window.location.reload()}>
+          Try again
+        </button>
+        .
+      </div>
+    )
 
   const accuracy = stats.attempted > 0 ? Math.round((stats.correct / stats.attempted) * 100) : 0
   const earned = BADGES.filter(
@@ -154,6 +181,52 @@ export default function ProgressPage() {
         subtitle="Everything you have earned so far, and how close you are to the next badge."
       />
 
+      <section className="card mb-6 p-5" aria-label="Mock examination history">
+        <h2 className="text-h3 font-semibold">Recent mock and revision history</h2>
+        <p className="mt-2 text-caption text-muted">
+          Quiz badges count server-verified results. Legacy history: {stats.legacyQuizzes} entries, excluded
+          from quiz badge counts.
+        </p>
+        {history.length === 0 && (
+          <p className="mt-3 text-body-sm text-muted">
+            Completed mocks and short revision sets appear here after submission.
+          </p>
+        )}
+        {history.map((result) => (
+          <details key={result.attemptId} className="mt-4 border-t border-hairline pt-4">
+            <summary className="cursor-pointer font-semibold">
+              {result.exam} · {result.subjects.join(", ")} · {result.score}/{result.totalQuestions}
+              {result.mode === "draft_review" ? " · Draft teacher review (excluded from totals)" : ""}
+            </summary>
+            <p className="mt-2 text-caption text-muted">
+              {result.totalQuestions} questions · {result.durationSeconds / 60} minutes allowed ·{" "}
+              {result.assessmentType === "trusted"
+                ? result.reportEligible
+                  ? "Trusted timed assessment"
+                  : "Expired assessment: excluded from reports"
+                : "Formative revision: not institutional assessment evidence"}
+            </p>
+            <ol className="mt-4 space-y-5">
+              {result.questions.map((q, index) => (
+                <li key={q.id} className="rounded-lg border border-hairline p-4">
+                  <p className="font-semibold">
+                    {index + 1}. {richText(q.question)}
+                  </p>
+                  <p className="mt-2 text-body-sm">
+                    Your answer: {result.answers[q.id] || "Unanswered"}. Correct: {q.correctAnswer} —{" "}
+                    {richText(optionsOf(q).find((o) => o.letter === q.correctAnswer)?.text || "")}
+                  </p>
+                  <p className="mt-2 text-body-sm text-muted">
+                    {q.explanation
+                      ? richText(q.explanation)
+                      : "Worked explanation unavailable for this imported question."}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </details>
+        ))}
+      </section>
       <div className="mb-6 grid animate-fade-in grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Streak"
@@ -172,8 +245,8 @@ export default function ProgressPage() {
           <h2 className="text-overline uppercase text-subtle">Practice accuracy</h2>
           {stats.attempted === 0 ? (
             <p className="mt-3 text-body-sm text-muted">
-              You have not answered any practice questions yet. Your accuracy appears here after the
-              first one.
+              You have not answered any practice questions yet. Your accuracy appears here after the first
+              one.
             </p>
           ) : (
             <>
@@ -188,8 +261,7 @@ export default function ProgressPage() {
                 ariaLabel="Practice accuracy"
               />
               <p className="mt-2 text-caption text-muted">
-                {stats.correct.toLocaleString()} correct out of {stats.attempted.toLocaleString()}{" "}
-                answered.
+                {stats.correct.toLocaleString()} correct out of {stats.attempted.toLocaleString()} answered.
               </p>
             </>
           )}
@@ -202,9 +274,7 @@ export default function ProgressPage() {
             ].map((cell) => (
               <div key={cell.label}>
                 <dt className="text-caption text-muted">{cell.label}</dt>
-                <dd className="text-body font-semibold tabular-nums text-foreground">
-                  {cell.value}
-                </dd>
+                <dd className="text-body font-semibold tabular-nums text-foreground">{cell.value}</dd>
               </div>
             ))}
           </dl>
@@ -217,13 +287,11 @@ export default function ProgressPage() {
             </span>
             <h2 className="mt-4 text-h4 font-semibold text-foreground">Strengths and gaps</h2>
             <p className="mt-2 text-body-sm text-muted">
-              A subject-by-subject breakdown of your quiz accuracy, with the weakest first and a
-              practice link for each one.
+              A subject-by-subject breakdown of your quiz accuracy, with the weakest first and a practice link
+              for each one.
             </p>
           </div>
-          <span className="mt-4 text-caption font-semibold text-accent">
-            See the breakdown →
-          </span>
+          <span className="mt-4 text-caption font-semibold text-accent">See the breakdown →</span>
         </Link>
       </div>
 
@@ -246,18 +314,14 @@ export default function ProgressPage() {
                 key={badge.id}
                 className={cn(
                   "flex flex-col items-center rounded-xl border p-4 text-center",
-                  unlocked
-                    ? "border-accent/30 bg-accent/[0.06]"
-                    : "border-hairline bg-surface-sunken",
+                  unlocked ? "border-accent/30 bg-accent/[0.06]" : "border-hairline bg-surface-sunken",
                 )}
               >
                 <span
                   aria-hidden="true"
                   className={cn(
                     "inline-flex h-12 w-12 items-center justify-center rounded-full border text-xl",
-                    unlocked
-                      ? "border-accent/30 bg-surface"
-                      : "border-hairline bg-surface text-subtle",
+                    unlocked ? "border-accent/30 bg-surface" : "border-hairline bg-surface text-subtle",
                   )}
                 >
                   {unlocked ? badge.icon : <Lock size={18} aria-hidden="true" />}
@@ -271,9 +335,7 @@ export default function ProgressPage() {
                 >
                   {badge.name}
                 </p>
-                <p className="mt-1 text-caption text-muted">
-                  {unlocked ? "Earned" : badge.description}
-                </p>
+                <p className="mt-1 text-caption text-muted">{unlocked ? "Earned" : badge.description}</p>
                 {!unlocked && (
                   <p className="mt-2 text-caption font-semibold tabular-nums text-subtle">
                     {Math.min(current, target).toLocaleString()} / {target.toLocaleString()}
@@ -287,4 +349,3 @@ export default function ProgressPage() {
     </>
   )
 }
-

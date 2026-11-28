@@ -9,6 +9,7 @@
  *   • Filling exam/year/subject defaults from the upload form
  *   • Coercing types (e.g. year to number)
  */
+import { canonicalExam, canonicalSubject } from "./mock-exams"
 import { COLUMN_ALIASES, Difficulty, PracticeQuestion, QuestionOptions, RawRow } from "./types/question"
 import { arrayToOptions, extractOption, isOptionsArray, isOptionsObject } from "./utils/format"
 
@@ -173,9 +174,9 @@ export function normalizeRow(
 
   return {
     _originalIndex: index,
-    exam: String(exam).trim(),
+    exam: canonicalExam(String(exam)),
     year: Number.isFinite(year) ? year : 0,
-    subject: String(subject).trim(),
+    subject: canonicalSubject(String(subject)),
     topic,
     questionNumber,
     question,
@@ -189,6 +190,7 @@ export function normalizeRow(
     paper,
     difficulty,
     source,
+    publicationStatus: row.publicationStatus === "draft" ? "draft" : undefined,
     createdAt: now,
     updatedAt: now,
   }
