@@ -1,0 +1,14 @@
+Windows local staging preparation — engineering checks
+
+npm test: 51 passed (including rejection of hosted/disguised endpoints, DB URL host overrides, and inherited production/provider/Node injection environment variables).
+npm run lint: passed, no warnings/errors.
+npm run typecheck: passed.
+npm run test:math-review: eight calculations verified; unchanged draft SHA-256 00dd51de285a183ff37366c9df81bf3ce931c79b306884ef8cbc2a9c7b350240.
+node --check: both local-staging JS modules passed.
+PowerShell 7.5.4 on Linux: both .ps1 scripts parsed; Run-Checked array argument binding verified.
+PowerShell and Node launcher refusal checks: existing .env files rejected before backend operations.
+Fresh isolated checkout: runtime generation passed with dedicated project ID, copied migrations and local ports.
+
+Limits: no Lenovo hardware, Windows PowerShell 5.1, Windows ACL or Docker Desktop/WSL 2 run was available in engineering. PowerShell parsing and Linux checks are not a claim of Windows acceptance. The user must complete docs/windows-local-staging.md and return findings for independent review. P0-B requires subsequent explicit approval.
+
+Real local Supabase smoke test (Linux): generated runtime applied all six migrations, seeded two schools/eight accounts/40 synthetic Economics fixtures, and all eight GoTrue password logins passed. Seeded teacher cohort scope, school-B denial of school-A reads and protected learner discovery privacy passed. The new mail-capture ports avoided conflict with the existing engineering stack. This managed workspace's proxy-injected health probes required the previously documented local wget workaround; Windows setup retains normal health checks.

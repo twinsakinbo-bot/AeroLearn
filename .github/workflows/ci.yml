@@ -23,6 +23,15 @@ jobs:
       - run: npm audit --audit-level=critical
       - run: npm run lint
       - run: npm run typecheck
+      - name: Parse Windows staging scripts
+        shell: pwsh
+        run: |
+          foreach ($file in @('scripts/Local-Staging.ps1', 'scripts/Invoke-LocalStagingApi.ps1')) {
+            $errors = $null
+            $tokens = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { $errors | Format-List; throw "PowerShell parse failed: $file" }
+          }
       - run: npm test
       - run: npm run test:math-review
       - run: npm run build

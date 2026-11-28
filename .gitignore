@@ -90,3 +90,6 @@ public/downloads/*.exe
 supabase/.temp/
 playwright-report/
 test-results/
+
+# Isolated local acceptance credentials and Supabase runtime
+.local-staging/
