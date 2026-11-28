@@ -20,7 +20,8 @@
     "test:plans": "tsx --test tests/plan-flow.test.ts",
     "desktop:dev": "npx tauri dev",
     "desktop:build": "npm --prefix desktop-app run build && npx tauri build",
-    "test:http": "node tests/http-security-check.mjs"
+    "test:http": "node tests/http-security-check.mjs",
+    "test:institutional:http": "node tests/institutional-safeguards-http.mjs"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",

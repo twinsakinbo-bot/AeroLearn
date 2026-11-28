@@ -1,0 +1,148 @@
+Local synthetic checks — 28 November 2026
+Not production or Supabase staging evidence.
+
+$ npm test
+> aerolearn@1.0.2 test
+> tsx --test tests/*.test.ts
+
+✔ tutor lookup requests are parsed without exposing them as answers (4.655881ms)
+✔ expression precedence and right-associative powers (1.348687ms)
+✔ scientific functions use the chosen angle mode (0.36485ms)
+✔ invalid or unsafe input fails clearly (0.636492ms)
+✔ CBT scores normalized option letters and leaves unanswered items at zero (2.187117ms)
+✔ CBT never credits a blank response or a missing answer key (0.270129ms)
+✔ unsubscribe token belongs to one account and email address (1.886903ms)
+✔ study emails include a direct link and one-click mailbox headers (1.759874ms)
+✔ command contract rejects identity overrides, missing context and excessive personal data (1.551116ms)
+✔ disabled and unauthenticated requests never create a database client (26.484618ms)
+✔ real Supabase HTTP transport uses caller token, validates school context, sanitizes errors and disables caching (84.09351ms)
+✔ lesson sequences render as accessible maths and a real comparison table (73.254298ms)
+✔ existing dollar maths, links, prose and code samples stay intact (15.253607ms)
+✔ lesson HTML and unsafe maths links cannot inject active markup (9.54106ms)
+✔ replacement retains the lesson ID, references and creation date (2.805221ms)
+✔ a failed replacement leaves the original lesson intact (1.054826ms)
+✔ skip and import-as-new preserve existing lesson content (0.518497ms)
+✔ imports use bounded concurrency while repeated replacements keep input order (15.308477ms)
+Lesson AI attempt 1/6 failed: temporary gateway error
+Lesson AI attempt 2/6 failed: temporary gateway error
+Lesson AI attempt 3/6 failed: temporary gateway error
+Lesson AI attempt 4/6 failed: temporary gateway error
+Lesson AI attempt 5/6 failed: temporary gateway error
+Lesson AI attempt 1/6 failed: gateway unavailable
+Lesson AI attempt 2/6 failed: gateway unavailable
+Lesson AI attempt 3/6 failed: gateway unavailable
+Lesson AI attempt 4/6 failed: gateway unavailable
+Lesson AI attempt 5/6 failed: gateway unavailable
+Lesson AI attempt 6/6 failed: gateway unavailable
+Lesson AI attempt 1/6 failed: gateway failed (429)
+Lesson AI attempt 2/6 failed: gateway failed (429)
+Lesson AI attempt 3/6 failed: gateway failed (429)
+Lesson AI attempt 4/6 failed: gateway failed (429)
+Lesson AI attempt 5/6 failed: gateway failed (429)
+Lesson AI attempt 6/6 failed: gateway failed (429)
+✔ lesson AI retries five times with increasing gaps (3.195699ms)
+✔ lesson AI reports exhaustion after the sixth failure (1.269329ms)
+✔ rate limits wait longer before each retry (0.492459ms)
+✔ Google and incomplete profiles must choose a purpose and subjects (0.8582ms)
+✔ completed learning setup is preserved for each learning purpose (0.191083ms)
+✔ every purchasable plan unlocks access for its duration (1.347635ms)
+✔ expired and malformed grants do not unlock paid features (0.205224ms)
+✔ a pending receipt grants a pass only to its owner when they need it (0.206516ms)
+✔ redeeming a finite code cannot replace permanent access (0.144524ms)
+✔ outbound fetch pins validated DNS, caps bodies and bounds slow streams (115.261284ms)
+✔ private, mapped, multicast and transition addresses are rejected before connecting (3.85792ms)
+✔ DNS lookup cannot outlive the overall request deadline (30.897548ms)
+✔ OAuth destinations cannot escape the application origin (1.561671ms)
+✔ independent server instances share limits and store only hashed subjects (3.461963ms)
+✔ public abuse controls fail closed on database failure or malformed responses (2.379522ms)
+✔ password reset has the same response for existing, missing and failed-delivery accounts (1.119286ms)
+✔ rejected local-limit requests cannot extend the active window (9.463607ms)
+✔ welcome mail requires a confirmed Auth email and ignores caller-selected recipients (0.970547ms)
+✔ challenge scoring uses stored answers and counts unanswered questions (2.01315ms)
+✔ challenge scoring rejects foreign, missing, and invalid question data (0.281257ms)
+✔ new service worker activation removes old private response caches (5.311901ms)
+✔ password guidance matches the hosted policy (1.710762ms)
+✔ Supabase signup errors identify the field and useful next step (1.099698ms)
+✔ Nigeria calendar day changes at midnight Lagos, not midnight UTC (1.696891ms)
+✔ one visit per day awards one day and one login reward (0.341035ms)
+✔ missed days reset the streak; one freeze covers exactly one missed day (1.019238ms)
+✔ inactive streaks become zero without login and warn on the last day (0.358531ms)
+✔ confirmation email keeps the action link and escapes the recipient (0.974332ms)
+ℹ tests 46
+ℹ suites 0
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3250.413722
+
+$ npm run test:plans
+> aerolearn@1.0.2 test:plans
+> tsx --test tests/plan-flow.test.ts
+
+✔ every purchasable plan unlocks access for its duration (1.030084ms)
+✔ expired and malformed grants do not unlock paid features (0.192545ms)
+✔ a pending receipt grants a pass only to its owner when they need it (0.309829ms)
+✔ redeeming a finite code cannot replace permanent access (0.150883ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 206.986291
+
+$ npm run lint
+> aerolearn@1.0.2 lint
+> next lint
+
+`next lint` is deprecated and will be removed in Next.js 16.
+For new projects, use create-next-app to choose your preferred linter.
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+✔ No ESLint warnings or errors
+
+$ npm run typecheck
+> aerolearn@1.0.2 typecheck
+> tsc --noEmit
+
+$ npm run build
+✓ Compiled successfully in 28.7s
+ ✓ Generating static pages (102/102)
+├ ƒ /api/institutional                         260 B         105 kB
+
+$ npm run test:db:local
+Checking tests/fixtures/supabase-bootstrap.sql
+Checking supabase/migrations/0001_init.sql
+Checking supabase/migrations/0002_licence_codes.sql
+Checking supabase/migrations/0003_security_hardening.sql
+Checking supabase/migrations/20261128030853_institutional_foundation.sql
+Checking tests/security-policies.sql
+Checking tests/security-access.sql
+Checking tests/payment-approval.sql
+Checking tests/licence-redemption.sql
+Checking tests/shared-rate-limit.sql
+Checking tests/institutional-security.sql
+Institutional security: isolation, roles, invites, revocation, withdrawal, deletion, privacy, flags and retail checks passed.
+Concurrent one-use invitation: one accepted, one denied, one membership and audit event.
+Database migration and access checks passed.
+
+$ npm run test:http
+> aerolearn@1.0.2 test:http
+> node tests/http-security-check.mjs
+
+102 missing/invalid-token HTTP authorization checks passed.
+
+$ npm run test:institutional:http
+> aerolearn@1.0.2 test:institutional:http
+> node tests/institutional-safeguards-http.mjs
+
+13 local production HTTP safeguard checks passed; no real accounts, provider calls or email.

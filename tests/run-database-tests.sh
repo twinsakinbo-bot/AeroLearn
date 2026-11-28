@@ -18,7 +18,8 @@ run_sql() {
 }
 run_sql tests/fixtures/supabase-bootstrap.sql
 for migration in supabase/migrations/*.sql; do run_sql "$migration"; done
-for test_file in tests/security-policies.sql tests/security-access.sql tests/payment-approval.sql tests/licence-redemption.sql tests/shared-rate-limit.sql; do
+for test_file in tests/security-policies.sql tests/security-access.sql tests/payment-approval.sql tests/licence-redemption.sql tests/shared-rate-limit.sql tests/institutional-security.sql; do
   run_sql "$test_file"
 done
+bash tests/institutional-concurrency.sh "$test_container"
 echo "Database migration and access checks passed."

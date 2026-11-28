@@ -1,3 +1,4 @@
+import { isProtectedLearner } from '@/lib/institutional/safeguards'
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
@@ -38,6 +39,7 @@ export async function GET(request: Request) {
 
   for (const entry of users.docs) {
     const user = entry.data()
+    if (await isProtectedLearner(entry.id)) continue
     if (user.role === "admin" || !user.email) continue
     const ref = db.collection("users").doc(entry.id)
     const name = escapeHtml(String(user.displayName || "Student"))

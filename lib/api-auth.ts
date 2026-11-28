@@ -38,6 +38,12 @@ export async function requireUser(request: Request): Promise<Gate> {
   try {
     const { getAdminAuth } = await import("@/lib/db-admin")
     const decoded = await getAdminAuth().verifyIdToken(idToken)
+    const path = new URL(request.url).pathname
+    if (path.startsWith('/api/ai-') || ['/api/friends', '/api/conversations/leave', '/api/challenges/generate', '/api/gamification/add-coins', '/api/onboarding/welcome'].includes(path)) {
+      const { denyProtectedLearner } = await import('@/lib/institutional/safeguards')
+      const blocked = await denyProtectedLearner(decoded.uid)
+      if (blocked) return { ok: false, response: blocked }
+    }
     return { ok: true, uid: decoded.uid }
   } catch {
     return deny("Your session has expired. Sign in again.", 401)

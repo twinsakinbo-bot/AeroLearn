@@ -1,3 +1,4 @@
+import { isProtectedLearner } from '@/lib/institutional/safeguards'
 import { NextRequest, NextResponse } from "next/server"
 import { getAdminDb } from "@/lib/db-admin"
 import { Resend } from "resend"
@@ -136,6 +137,7 @@ async function runDripCampaign(req: NextRequest) {
 
     for (const userDoc of usersSnap.docs) {
       const userData = userDoc.data()
+      if (await isProtectedLearner(userDoc.id)) continue
       if (!userData.email || !userData.createdAt || userData.studyEmailsEnabled === false ||
           userData.lastEmailActivityDate === new Date().toISOString().slice(0, 10)) continue
 
