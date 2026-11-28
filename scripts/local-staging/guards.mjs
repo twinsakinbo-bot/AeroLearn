@@ -37,6 +37,7 @@ export function safeEnvironment(parent, cfg) {
     SUPABASE_SERVICE_ROLE_KEY: cfg.SERVICE_ROLE_KEY,
     NEXT_PUBLIC_SITE_URL: site,
     INSTITUTIONAL_MVP_ENABLED: "true",
+    INSTITUTIONAL_LICENSING_ENABLED: "true",
     MOCK_DRAFT_REVIEW_ENABLED: "false",
     VERCEL_ENV: "preview",
   }

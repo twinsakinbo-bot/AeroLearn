@@ -89,6 +89,8 @@ jobs:
         if: always()
         with:
           name: real-supabase-integration-evidence
-          path: docs/evidence/integration/
+          path: |
+            docs/evidence/integration/
+            docs/evidence/licensing/
       - run: npx --yes supabase@3.4.0 stop
         if: always()

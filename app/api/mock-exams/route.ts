@@ -173,25 +173,30 @@ export async function POST(request: Request) {
         throw error
       }
     }
+    const school = body.institutionId
+    if (school !== undefined && (typeof school !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(school) || request.headers.get('x-institution-id') !== school))
+      return reply({ error: 'Choose a matching school context.' }, 400)
+    if (school && (process.env.INSTITUTIONAL_MVP_ENABLED !== 'true' || process.env.INSTITUTIONAL_LICENSING_ENABLED !== 'true' || mode === 'draft_review'))
+      return reply({ error: 'School revision is unavailable.' }, 403)
     const profile = await getAdminDb().collection("users").doc(gate.uid).get()
-    const { data, error } = await getSupabaseAdmin().rpc("start_mock_attempt", {
+    const { data, error } = await getSupabaseAdmin().rpc(school ? "start_institutional_mock" : "start_mock_attempt", {
       p_uid: gate.uid,
       p_exam: exam,
       p_subjects: subjects,
       p_mode: mode,
       p_questions: questions,
-      p_pro: isProUser(profile.data()),
+      ...(school ? { p_institution_id: school } : { p_pro: isProUser(profile.data()) }),
       p_request_id: body.requestId,
     })
     if (error)
       return reply(
         {
           error:
-            error.code === "P0001"
+            error.code === "42501" ? "Your school revision entitlement is unavailable. Refresh school access." : error.code === "P0001"
               ? "Your weekly full-mock allowance is used. Short revision does not use this allowance."
               : "The exam could not start. Retry; no partial attempt was saved.",
         },
-        error.code === "P0001" ? 429 : 503,
+        error.code === "42501" ? 403 : error.code === "P0001" ? 429 : 503,
       )
     return reply({
       ...data,

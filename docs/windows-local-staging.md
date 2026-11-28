@@ -1,6 +1,6 @@
 # Windows local staging on a Lenovo laptop
 
-Use a **fresh, separate checkout** of `integration/p0-a-waec-staging`. This setup uses Docker Desktop's Linux containers, Node.js 22 LTS, Git, PowerShell 5.1 or 7, and Supabase CLI 3.x (tested with 3.4.0). No hosted Supabase project, subscription, paid add-on, deploy or main merge is involved. P0-B remains gated on independent acceptance, review and explicit approval.
+Use a **fresh, separate checkout** of `integration/p0-a-waec-staging`. This setup uses Docker Desktop's Linux containers, Node.js 22 LTS, Git, PowerShell 5.1 or 7, and Supabase CLI 3.x (tested with 3.4.0). No hosted Supabase project, subscription, paid add-on, deploy or main merge is involved. For the P0-B candidate, use the branch and additional checklist in [p0-b-acceptance.md](p0-b-acceptance.md). P0-B release remains gated on independent acceptance, review and explicit approval.
 
 ## Install and prepare
 
