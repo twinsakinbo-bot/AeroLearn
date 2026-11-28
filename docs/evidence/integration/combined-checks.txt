@@ -1,0 +1,227 @@
+Combined integration evidence (local synthetic fixtures)
+
+LINT
+
+> aerolearn@1.0.2 lint
+> next lint
+
+`next lint` is deprecated and will be removed in Next.js 16.
+For new projects, use create-next-app to choose your preferred linter.
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+✔ No ESLint warnings or errors
+
+
+TYPES
+
+> aerolearn@1.0.2 typecheck
+> tsc --noEmit
+
+
+
+UNIT
+
+> aerolearn@1.0.2 test
+> tsx --test tests/*.test.ts
+
+✔ tutor lookup requests are parsed without exposing them as answers (1.165495ms)
+✔ expression precedence and right-associative powers (1.707016ms)
+✔ scientific functions use the chosen angle mode (0.298582ms)
+✔ invalid or unsafe input fails clearly (0.783049ms)
+✔ CBT scores normalized option letters and leaves unanswered items at zero (2.869547ms)
+✔ CBT never credits a blank response or a missing answer key (0.387143ms)
+✔ unsubscribe token belongs to one account and email address (4.731592ms)
+✔ study emails include a direct link and one-click mailbox headers (1.326032ms)
+✔ command contract rejects identity overrides, missing context and excessive personal data (2.09467ms)
+✔ disabled and unauthenticated requests never create a database client (19.971436ms)
+✔ real Supabase HTTP transport uses caller token, validates school context, sanitizes errors and disables caching (90.806968ms)
+✔ lesson sequences render as accessible maths and a real comparison table (60.186722ms)
+✔ existing dollar maths, links, prose and code samples stay intact (13.161668ms)
+✔ lesson HTML and unsafe maths links cannot inject active markup (7.181729ms)
+✔ replacement retains the lesson ID, references and creation date (2.12209ms)
+✔ a failed replacement leaves the original lesson intact (0.632796ms)
+✔ skip and import-as-new preserve existing lesson content (0.501492ms)
+✔ imports use bounded concurrency while repeated replacements keep input order (13.510846ms)
+Lesson AI attempt 1/6 failed: temporary gateway error
+Lesson AI attempt 2/6 failed: temporary gateway error
+Lesson AI attempt 3/6 failed: temporary gateway error
+Lesson AI attempt 4/6 failed: temporary gateway error
+Lesson AI attempt 5/6 failed: temporary gateway error
+Lesson AI attempt 1/6 failed: gateway unavailable
+Lesson AI attempt 2/6 failed: gateway unavailable
+Lesson AI attempt 3/6 failed: gateway unavailable
+Lesson AI attempt 4/6 failed: gateway unavailable
+Lesson AI attempt 5/6 failed: gateway unavailable
+Lesson AI attempt 6/6 failed: gateway unavailable
+Lesson AI attempt 1/6 failed: gateway failed (429)
+Lesson AI attempt 2/6 failed: gateway failed (429)
+Lesson AI attempt 3/6 failed: gateway failed (429)
+Lesson AI attempt 4/6 failed: gateway failed (429)
+Lesson AI attempt 5/6 failed: gateway failed (429)
+Lesson AI attempt 6/6 failed: gateway failed (429)
+✔ lesson AI retries five times with increasing gaps (3.084345ms)
+✔ lesson AI reports exhaustion after the sixth failure (1.031817ms)
+✔ rate limits wait longer before each retry (0.426731ms)
+✔ availability is board/subject-specific, excludes malformed and draft content (7.199555ms)
+✔ active question projection omits keys/explanations; normalization preserves draft gate (2.373082ms)
+✔ failed question replacement preserves original; successful replacement retains ID (0.982294ms)
+✔ Google and incomplete profiles must choose a purpose and subjects (0.889857ms)
+✔ completed learning setup is preserved for each learning purpose (0.246975ms)
+✔ every purchasable plan unlocks access for its duration (5.062402ms)
+✔ expired and malformed grants do not unlock paid features (0.279835ms)
+✔ a pending receipt grants a pass only to its owner when they need it (0.213766ms)
+✔ redeeming a finite code cannot replace permanent access (0.15503ms)
+✔ outbound fetch pins validated DNS, caps bodies and bounds slow streams (113.436362ms)
+✔ private, mapped, multicast and transition addresses are rejected before connecting (2.278712ms)
+✔ DNS lookup cannot outlive the overall request deadline (30.084584ms)
+✔ OAuth destinations cannot escape the application origin (1.224993ms)
+✔ independent server instances share limits and store only hashed subjects (3.190162ms)
+✔ public abuse controls fail closed on database failure or malformed responses (2.000762ms)
+✔ password reset has the same response for existing, missing and failed-delivery accounts (1.295267ms)
+✔ rejected local-limit requests cannot extend the active window (7.390752ms)
+✔ welcome mail requires a confirmed Auth email and ignores caller-selected recipients (0.712795ms)
+✔ challenge scoring uses stored answers and counts unanswered questions (2.308456ms)
+✔ challenge scoring rejects foreign, missing, and invalid question data (0.309238ms)
+✔ new service worker activation removes old private response caches (2.426322ms)
+✔ password guidance matches the hosted policy (1.294036ms)
+✔ Supabase signup errors identify the field and useful next step (1.339402ms)
+✔ Nigeria calendar day changes at midnight Lagos, not midnight UTC (1.319523ms)
+✔ one visit per day awards one day and one login reward (0.346442ms)
+✔ missed days reset the streak; one freeze covers exactly one missed day (0.855916ms)
+✔ inactive streaks become zero without login and warn on the last day (0.35113ms)
+✔ confirmation email keeps the action link and escapes the recipient (1.150433ms)
+ℹ tests 49
+ℹ suites 0
+ℹ pass 49
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3133.874088
+
+
+PLANS
+
+> aerolearn@1.0.2 test:plans
+> tsx --test tests/plan-flow.test.ts
+
+✔ every purchasable plan unlocks access for its duration (1.175971ms)
+✔ expired and malformed grants do not unlock paid features (0.197452ms)
+✔ a pending receipt grants a pass only to its owner when they need it (0.204272ms)
+✔ redeeming a finite code cannot replace permanent access (0.145956ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 575.905279
+
+
+MATH
+
+> aerolearn@1.0.2 test:math-review
+> python3 scripts/verify-mathematics-draft.py
+
+Q1: Algebra: linear equations — calculation and option C verified
+Q2: Quadratic equations — calculation and option B verified
+Q3: Algebra: direct variation — calculation and option D verified
+Q4: Plane geometry: area of a trapezium — calculation and option A verified
+Q5: Trigonometry: right-angled triangles — calculation and option C verified
+Q6: Probability: sampling without replacement — calculation and option B verified
+Q7: Statistics: arithmetic mean — calculation and option D verified
+Q8: Coordinate geometry: distance between two points — calculation and option A verified
+Answer key: C, B, D, A, C, B, D, A
+SHA-256: 00dd51de285a183ff37366c9df81bf3ce931c79b306884ef8cbc2a9c7b350240
+Eight independent calculation checks passed. Teacher approval: PENDING; publication: DRAFT.
+
+
+HTTP
+
+> aerolearn@1.0.2 test:http
+> node tests/http-security-check.mjs
+
+102 missing/invalid-token HTTP authorization checks passed.
+
+
+INSTITUTIONAL-HTTP
+
+> aerolearn@1.0.2 test:institutional:http
+> node tests/institutional-safeguards-http.mjs
+
+13 local production HTTP safeguard checks passed; no real accounts, provider calls or email.
+
+
+DESKTOP
+
+> aerolearn@1.0.2 desktop:check
+> npm --prefix desktop-app run build
+
+
+> build
+> tsc -p tsconfig.json && vite build
+
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 1647 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.45 kB │ gzip:  0.29 kB
+dist/assets/index-CN00Riaw.css   35.37 kB │ gzip:  7.18 kB
+dist/assets/index-tuWx6tv-.js   233.81 kB │ gzip: 72.65 kB
+
+✓ built in 251ms
+
+
+PILOT
+
+> aerolearn@1.0.2 test:pilot:e2e
+> node tests/e2e/mock-workflow.mjs
+
+1280px: unavailable bank, draft 8-question activity, answer, cancel/confirm, failed-save retry, 1/8 score, all explanations and history reload passed.
+360px: unavailable bank, draft 8-question activity, answer, cancel/confirm, failed-save retry, 1/8 score, all explanations and history reload passed.
+Browser 40-question Economics submit/review and draft timer-expiry auto-submit passed.
+40-question Economics: 40-minute timer, one answer, concurrent submissions, 1/40 score, one reward/progress update, foreign denial and independent short-mode allowance passed.
+
+
+DB
+--------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ d0000000-0000-4000-8000-000000000002
+(1 row)
+
+              set_config              
+--------------------------------------
+ d0000000-0000-4000-8000-000000000001
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+Mock sessions: snapshot, scoring, blanks, idempotency, atomic progress, weekly allowance, draft exclusion and result RLS passed.
+              set_config              
+--------------------------------------
+ c0000000-0000-4000-8000-000000000001
+(1 row)
+
+Concurrent one-use invitation: one accepted, one denied, one membership and audit event.
+Database migration and access checks passed.
+
+Build passed (Next production build). npm audit: zero critical/high; 4 low, 2 moderate existing dependency findings.
+
+REAL SUPABASE
+PASS: real local Supabase GoTrue password sign-in and getUser; PostgREST JWT/RLS; two-school isolation; teacher privilege denial and immediate revocation with same JWT; learner privacy and AI safeguards; protected mock allowance; student draft denial; real Next start/retry; 40-question scoring; concurrent exactly-once persistence; foreign attempt/result denial; progress and worked history reload at 360px/1280px.
+Synthetic data only. Hosted project creation refused by free two-project limit; no hosted preview. Mathematics remains draft.

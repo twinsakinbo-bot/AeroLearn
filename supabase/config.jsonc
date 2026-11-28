@@ -1,0 +1,49 @@
+{
+  "project_id": "aerolearn-integration",
+  "api": {
+    "enabled": true,
+    "port": 54321,
+    "schemas": [
+      "public"
+    ],
+    "extra_search_path": [
+      "public",
+      "extensions"
+    ],
+    "max_rows": 1000
+  },
+  "db": {
+    "port": 54322,
+    "shadow_port": 54320,
+    "major_version": 17,
+    "seed": {
+      "enabled": false
+    }
+  },
+  "auth": {
+    "enabled": true,
+    "site_url": "http://127.0.0.1:4322",
+    "additional_redirect_urls": [
+      "http://127.0.0.1:4322/auth/callback"
+    ],
+    "enable_signup": false,
+    "email": {
+      "enabled": true
+    }
+  },
+  "studio": {
+    "enabled": false
+  },
+  "analytics": {
+    "enabled": false
+  },
+  "storage": {
+    "enabled": true
+  },
+  "edge_runtime": {
+    "enabled": false
+  },
+  "realtime": {
+    "enabled": false
+  }
+}

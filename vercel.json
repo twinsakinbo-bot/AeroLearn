@@ -23,7 +23,9 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "feat/institutional-mvp": false
+      "feat/institutional-mvp": false,
+      "feat/waec-pilot-readiness": false,
+      "integration/p0-a-waec-staging": false
     }
   }
 }
