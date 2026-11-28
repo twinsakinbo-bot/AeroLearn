@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { InstitutionalLink } from "@/components/ui/institutional-link"
 import { BottomNav } from "@/components/ui/bottom-nav"
 import { Logo } from "@/components/ui/logo"
 import { isNavActive, navGroups } from "@/components/ui/nav-config"
@@ -435,6 +436,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           className="scrollbar-hide flex-1 overflow-y-auto px-3 py-4"
         >
           <NavSections collapsed={collapsed} pathname={pathname} unread={unread} />
+          <InstitutionalLink collapsed={collapsed} />
         </nav>
 
         <div className="shrink-0 border-t border-hairline p-3">
@@ -508,7 +510,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 unread={unread}
                 onNavigate={() => setDrawerOpen(false)}
               />
-
+              <InstitutionalLink onNavigate={() => setDrawerOpen(false)} />
             </nav>
 
             <div className="shrink-0 space-y-1 border-t border-hairline p-3">

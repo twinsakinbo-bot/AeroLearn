@@ -43,6 +43,7 @@ test("local app environment cannot inherit production credentials or Node inject
   )
   assert.equal(env.SUPABASE_SERVICE_ROLE_KEY, "local-secret")
   assert.equal(env.MOCK_DRAFT_REVIEW_ENABLED, "false")
+  assert.equal(env.INSTITUTIONAL_LICENSING_ENABLED, "true")
   for (const key of [
     "NODE_OPTIONS",
     "COARENA_API_KEY",

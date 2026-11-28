@@ -106,6 +106,8 @@ export default function MockExamsPage() {
   const [availabilityError, setAvailabilityError] = useState(false)
   const [availabilityVersion, setAvailabilityVersion] = useState(0)
   const [draftAvailable, setDraftAvailable] = useState(false)
+  const [schoolContext, setSchoolContext] = useState("")
+  const [schoolAccess, setSchoolAccess] = useState(false)
   const [mode, setMode] = useState<MockMode>("full")
   const [label, setLabel] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -115,10 +117,11 @@ export default function MockExamsPage() {
   const startRequestRef = useRef<{ key: string; id: string } | null>(null)
   const request = async (body: unknown) => {
     const token = await auth.currentUser?.getIdToken()
+    const school = body && typeof body === "object" && "institutionId" in body ? String(body.institutionId) : ""
     const response = await fetch("/api/mock-exams", {
       method: "POST",
       cache: "no-store",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(school ? { "X-Institution-Id": school } : {}) },
       body: JSON.stringify(body),
     })
     const result = await response.json()
@@ -136,6 +139,16 @@ export default function MockExamsPage() {
         return
       }
       setUid(user.uid)
+      const org = new URLSearchParams(window.location.search).get('institution') || ''
+      setSchoolContext(org)
+      if (org) {
+        const token = await user.getIdToken()
+        try {
+          const response = await fetch('/api/institutional/licensing', { cache: 'no-store', headers: { Authorization: `Bearer ${token}`, 'X-Institution-Id': org } })
+          const context = response.ok ? await response.json() : null
+          setSchoolAccess(!!context?.entitlement)
+        } catch { setSchoolAccess(false) }
+      }
       try {
         const snap = await getDoc(doc(db, "users", user.uid))
         if (snap.exists()) setSubscription({ isPro: isProUser(snap.data()) })
@@ -233,7 +246,7 @@ export default function MockExamsPage() {
     setFetching(true)
     setBanner(null)
     try {
-      const key = JSON.stringify([draft, examType, selectedSubjects, mode])
+      const key = JSON.stringify([draft, examType, selectedSubjects, mode, schoolContext])
       if (startRequestRef.current?.key !== key) startRequestRef.current = { key, id: crypto.randomUUID() }
       const result = await request({
         action: "start",
@@ -241,6 +254,7 @@ export default function MockExamsPage() {
         exam: draft ? "WAEC" : examType,
         subjects: draft ? ["Mathematics"] : selectedSubjects,
         mode: draft ? "draft_review" : mode,
+        ...(!draft && schoolContext ? { institutionId: schoolContext } : {}),
       })
       startRequestRef.current = null
       setQuestions(result.questions)
@@ -735,7 +749,7 @@ export default function MockExamsPage() {
         </section>
       )}
 
-      {!subscription?.isPro && (
+      {!subscription?.isPro && !schoolAccess && (
         <div className="card p-4 mb-6 border-accent/30 bg-accent/[0.04]">
           <div className="flex items-start gap-3">
             <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/[0.12] text-accent">
@@ -755,6 +769,7 @@ export default function MockExamsPage() {
         </div>
       )}
 
+      {schoolContext && <p className="card mb-4 p-4" role="status">{schoolAccess ? 'School formative revision access. Each start checks your current term and membership.' : 'School access is unavailable. Refresh school licensing or return to retail revision.'} <Link href="/app/institutional" className="underline">School licensing</Link></p>}
       <div className="card p-5 sm:p-6">
         <div className="mb-5 sm:max-w-xs">
           <label htmlFor="mock-mode" className="field-label">

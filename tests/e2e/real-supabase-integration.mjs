@@ -1,5 +1,6 @@
 /** Disposable local Supabase only: real GoTrue, PostgREST, JWTs, RLS and Next. */
 import assert from "node:assert/strict"
+import { verifyInstitutionalLicensing } from "./institutional-licensing.mjs"
 import { execFileSync, spawn } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { setTimeout as delay } from "node:timers/promises"
@@ -168,6 +169,7 @@ try {
         NEXT_PUBLIC_SUPABASE_ANON_KEY: cfg.ANON_KEY,
         SUPABASE_SERVICE_ROLE_KEY: cfg.SERVICE_ROLE_KEY,
         INSTITUTIONAL_MVP_ENABLED: "true",
+        INSTITUTIONAL_LICENSING_ENABLED: "true",
         MOCK_DRAFT_REVIEW_ENABLED: "true",
         VERCEL_ENV: "preview",
         RESEND_API_KEY: "",
@@ -415,6 +417,7 @@ try {
     })
     await ctx.close()
   }
+  await verifyInstitutionalLicensing({pool,actors,request,command,browser,base,ok,a,b,cohort,learner})
   const summary =
     "PASS: real local Supabase GoTrue password sign-in and getUser; PostgREST JWT/RLS; two-school isolation; teacher privilege denial and immediate revocation with same JWT; learner privacy and AI safeguards; protected mock allowance; student draft denial; real Next start/retry; 40-question scoring; concurrent exactly-once persistence; foreign attempt/result denial; progress and worked history reload at 360px/1280px.\nSynthetic data only. Hosted project creation refused by free two-project limit; no hosted preview. Mathematics remains draft.\n"
   writeFileSync(`${evidence}/real-supabase-summary.txt`, summary)

@@ -10,7 +10,7 @@ const root = resolve(import.meta.dirname, "../.."),
   runtime = resolve(dir, "runtime")
 process.chdir(root)
 assert.ok(
-  ["integration/p0-a-waec-staging", "security/p0-a-assessment-hardening"].includes(
+  ["integration/p0-a-waec-staging", "security/p0-a-assessment-hardening", "feat/p0-b-institutional-licensing"].includes(
     execFileSync("git", ["branch", "--show-current"], { encoding: "utf8" }).trim(),
   ),
   "Use an authorized local staging branch",
@@ -140,6 +140,7 @@ if (action === "start") {
       accounts[role] = { email, password, id: user.id }
     }
     await pool.query("update institutional_private.controls set enabled=true")
+    await pool.query("update institutional_private.licensing_controls set enabled=true")
     await pool.query(
       "insert into institutional_private.operators(user_id) values($1) on conflict do nothing",
       [accounts.operator.id],

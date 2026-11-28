@@ -24,7 +24,7 @@ await new Promise(resolve=>backend.listen(0,'127.0.0.1',resolve))
 const backendPort=backend.address().port
 const port=4320,base=`http://127.0.0.1:${port}`
 const app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port',String(port)],{
- stdio:['ignore','pipe','pipe'],env:{...process.env,NEXT_TELEMETRY_DISABLED:'1',NEXT_PUBLIC_SUPABASE_URL:`http://127.0.0.1:${backendPort}`,NEXT_PUBLIC_SUPABASE_ANON_KEY:'synthetic-anon-key',SUPABASE_SERVICE_ROLE_KEY:'synthetic-service-key',INSTITUTIONAL_MVP_ENABLED:'false',RESEND_API_KEY:'',GROQ_API_KEY:'',AETHER_API_KEY:'',COARENA_API_KEY:''},
+ stdio:['ignore','pipe','pipe'],env:{...process.env,NEXT_TELEMETRY_DISABLED:'1',NEXT_PUBLIC_SUPABASE_URL:`http://127.0.0.1:${backendPort}`,NEXT_PUBLIC_SUPABASE_ANON_KEY:'synthetic-anon-key',SUPABASE_SERVICE_ROLE_KEY:'synthetic-service-key',INSTITUTIONAL_MVP_ENABLED:'false',INSTITUTIONAL_LICENSING_ENABLED:'true',RESEND_API_KEY:'',GROQ_API_KEY:'',AETHER_API_KEY:'',COARENA_API_KEY:''},
 })
 let logs='';app.stdout.on('data',v=>{logs=(logs+v).slice(-4000)});app.stderr.on('data',v=>{logs=(logs+v).slice(-4000)})
 try {
@@ -45,8 +45,19 @@ try {
  unavailable=true
  const failed=await fetch(`${base}/api/ai-tutor`,{method:'POST',headers:{Authorization:'Bearer learner-token','Content-Type':'application/json'},body:'{}'})
  assert.equal(failed.status,503,'Unavailable safeguards must fail closed')
+ for(const [path,method] of [['/api/institutional/licensing','GET'],['/api/institutional/licensing','POST'],['/app/institutional','GET']]) {
+  const response=await fetch(base+path,{method,headers:{Authorization:'Bearer learner-token','Content-Type':'application/json'},...(method==='POST'?{body:'{}'}:{})})
+  if(path==='/app/institutional') {
+   // Next may have streamed the parent layout before notFound(): its HTTP status
+   // can be 200. Verify the actual not-found payload and absence of feature UI.
+   assert.ok([200,404].includes(response.status))
+   const html=await response.text()
+   assert.match(html,/NEXT_HTTP_ERROR_FALLBACK;404|This page could not be found/)
+   assert.doesNotMatch(html,/<h1[^>]*>School licensing<\/h1>/)
+  } else assert.equal(response.status,404,`${method} ${path}: institutional master switch must disable licensing`)
+ }
  assert.deepEqual(unexpected,[],'Protected routes reached business data/provider preparation')
- console.log('13 local production HTTP safeguard checks passed; no real accounts, provider calls or email.')
+ console.log('16 local production HTTP safeguard checks passed; no real accounts, provider calls or email.')
 } finally {
  app.kill('SIGTERM');await new Promise(resolve=>app.exitCode!==null?resolve():app.once('exit',resolve))
  await new Promise(resolve=>backend.close(resolve))
