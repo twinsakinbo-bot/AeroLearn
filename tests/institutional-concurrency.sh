@@ -38,8 +38,8 @@ claim > "$result_dir/one" 2>&1 & first_pid=$!
 claim > "$result_dir/two" 2>&1 & second_pid=$!
 wait "$first_pid"
 wait "$second_pid"
-[[ $(cat "$result_dir/one" "$result_dir/two" | rg -c 'CLAIM_OK') == 1 ]]
-[[ $(cat "$result_dir/one" "$result_dir/two" | rg -c 'CLAIM_DENIED') == 1 ]]
+[[ $(awk '/CLAIM_OK/ { n++ } END { print n+0 }' "$result_dir/one" "$result_dir/two") == 1 ]]
+[[ $(awk '/CLAIM_DENIED/ { n++ } END { print n+0 }' "$result_dir/one" "$result_dir/two") == 1 ]]
 run_sql <<'SQL'
 do $$ begin
  assert (select count(*) from public.institution_memberships where user_id='c0000000-0000-4000-8000-000000000002')=1,'Concurrent invitation duplicated membership';
