@@ -120,8 +120,10 @@ async function main() {
         assert.equal(await page.getByRole('button',{name:'Review draft Mathematics'}).count(),0)
         await noOverflow()
         await snap('bank')
+        note(`learner ${width}px login and bank`, 'PASS', 'Password sign-in; 40 Economics questions with explanations; draft Mathematics unavailable; bank fits viewport')
+        await page.getByLabel('Activity length',{exact:true}).selectOption('revision')
         await econ.click()
-        await page.locator('select').filter({has:page.locator('option[value="revision"]')}).selectOption('revision')
+        assert.equal(await econ.getAttribute('aria-pressed'),'true','QA: Economics subject was not selected after changing activity mode')
         check='timer and navigation'
         await page.getByRole('button',{name:'Start exam',exact:true}).click()
         await page.getByText('Question 1 of 8',{exact:false}).waitFor()
@@ -144,6 +146,7 @@ async function main() {
         assert.match(await page.getByRole('button',{name:new RegExp(`^[ABCD] ${selected[0].value}$`)}).getAttribute('class'),/ring-accent/)
         await noOverflow()
         await snap('timer')
+        note(`learner ${width}px timed practice`, 'PASS', `8 questions; countdown ${before} to ${after}; selection retained; no horizontal overflow`)
         check='submit and review'
         let submits=0
         page.on('request',req=>{ if(req.url()===base+'/api/mock-exams' && req.method()==='POST' && req.postDataJSON()?.action==='submit') submits++ })
@@ -159,6 +162,7 @@ async function main() {
         for(const {f} of selected) await page.getByText(`Worked QA ${f.n}: ${f.cents} × ${f.packs} = ${f.expected} units.`,{exact:false}).waitFor()
         await noOverflow()
         await snap('score-review')
+        note(`learner ${width}px scoring and review`, 'PASS', '3/8 expected and observed; one submit; eight worked explanations')
         check='persistence'
         await page.getByRole('link',{name:'View progress and history'}).click()
         const entry=page.getByText('WAEC · Economics · 3/8',{exact:false})
