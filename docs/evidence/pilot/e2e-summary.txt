@@ -1,0 +1,3 @@
+PASS: 1280px and 360px UI; draft exclusion; missing bank; 8-question draft; explicit dialog cancel/confirm; save failure/retry; correct/unanswered scoring; eight explanations; persisted history reload.
+PASS: 40-question/40-minute synthetic Economics, concurrent idempotent submit, cross-user denial, exact progress/rewards, full weekly allowance and independent 8-question short revision.
+Auth and PostgREST transport are local adapters; PostgreSQL SQL/RLS, Next handlers, React UI and persistence are real. Hosted Supabase Auth and real Test-account rehearsal remain unverified. No production writes, provider calls or email.

@@ -1,191 +1,76 @@
-/**
- * API Route: /api/import-questions
- *
- * Server-side batch Firestore import using the Firebase Admin SDK.
- * Ensures Firebase service account credentials are NEVER exposed to the browser.
- * Uses batched writes (max 500 per batch for Firestore limits).
- *
- * Client sends a valid Firebase ID token in the Authorization header
- * for an authenticated admin user, plus the array of validated questions.
- */
+/** Canonical, validated question imports. No deletion before replacement. */
 import { NextRequest, NextResponse } from "next/server"
-import { PracticeQuestion } from "@/lib/types/question"
-import { generateFingerprint } from "@/lib/utils/fingerprint"
 import { requireSchedulerOrAdmin } from "@/lib/api-auth"
-
-const BATCH_SIZE = 500
-
+import { normalizeRow } from "@/lib/question-normalizer"
+import { validateQuestions } from "@/lib/question-validator"
+import { importQuestionRows, type QuestionImportAction } from "@/lib/question-import"
+import type { AdminDocumentSnapshot } from "@/lib/db-admin"
+import type { PracticeQuestion, RawRow } from "@/lib/types/question"
 export async function POST(request: NextRequest) {
   const gate = await requireSchedulerOrAdmin(request)
   if (!gate.ok) return gate.response
   try {
-    const { getAdminDb } = await import("@/lib/db-admin")
-
-    // --- 2. Parse request body ---
     const body = await request.json()
-    const { questions, duplicateAction } = body as {
-      questions: PracticeQuestion[]
-      duplicateAction: "skip" | "replace" | "import-as-new"
-    }
-
-    if (!questions || !Array.isArray(questions) || questions.length === 0) {
-      return NextResponse.json({ error: "No questions provided" }, { status: 400 })
-    }
-
-    const db = getAdminDb()
-    const collection = db.collection("practiceQuestions")
-
-    // --- 3. Group by exam+subject and check duplicates in Firestore ---
-    const groups = new Map<string, PracticeQuestion[]>()
-    questions.forEach((q) => {
-      const key = `${q.exam}|${q.subject}`
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(q)
-    })
-
-    const fingerprintsToSkip = new Set<string>()
-    const fingerprintsToReplace = new Map<string, string>()
-
-    for (const [, group] of groups) {
-      const exam = group[0].exam
-      const subject = group[0].subject
-      const existing = await fetchExistingFingerprints(collection, exam, subject)
-
-      for (const q of group) {
-        const fp = generateFingerprint({
-          exam: q.exam, year: q.year, subject: q.subject, question: q.question,
-        })
-
-        if (existing.has(fp)) {
-          if (duplicateAction === "skip") {
-            fingerprintsToSkip.add(fp)
-          } else if (duplicateAction === "replace") {
-            fingerprintsToReplace.set(fp, existing.get(fp)!)
+    if (
+      !Array.isArray(body.questions) ||
+      body.questions.length === 0 ||
+      body.questions.length > 5000 ||
+      !["skip", "replace", "import-as-new"].includes(body.duplicateAction)
+    )
+      return NextResponse.json({ error: "Provide 1–5000 questions and a duplicate action." }, { status: 400 })
+    if (
+      body.questions.some(
+        (q: RawRow) => !q || typeof q !== "object" || q.publicationStatus === "draft" || q.status === "draft",
+      )
+    )
+      return NextResponse.json(
+        {
+          error:
+            "Draft questions cannot be published. Obtain teacher approval and complete the content review first.",
+        },
+        { status: 400 },
+      )
+    const questions = body.questions.map((row: RawRow, index: number) => normalizeRow(row, {}, index))
+    const checked = validateQuestions(questions)
+    if (Object.values(checked.errors).some((errors) => errors.some((e) => e.severity === "error")))
+      return NextResponse.json(
+        { error: "Question validation failed.", validation: checked.errors },
+        { status: 400 },
+      )
+    const { getAdminDb } = await import("@/lib/db-admin")
+    const collection = getAdminDb().collection("practiceQuestions")
+    const result = await importQuestionRows(
+      checked.validQuestions,
+      body.duplicateAction as QuestionImportAction,
+      {
+        list: async () => {
+          const rows: { id: string; data: PracticeQuestion }[] = []
+          let last: AdminDocumentSnapshot | null = null
+          for (;;) {
+            let q = collection.limit(500)
+            if (last) q = q.startAfter(last)
+            const page = await q.get()
+            rows.push(...page.docs.map((row) => ({ id: row.id, data: row.data() as PracticeQuestion })))
+            if (page.size < 500) break
+            last = page.docs[page.docs.length - 1]
           }
-        }
-      }
-    }
-
-    // --- 4. Filter and prepare questions for import ---
-    const questionsToImport: PracticeQuestion[] = []
-    let skippedCount = 0
-    let replacedCount = 0
-
-    for (const q of questions) {
-      const fp = generateFingerprint({
-        exam: q.exam, year: q.year, subject: q.subject, question: q.question,
-      })
-
-      if (duplicateAction === "skip" && fingerprintsToSkip.has(fp)) {
-        skippedCount++
-        continue
-      }
-
-      if (duplicateAction === "replace" && fingerprintsToReplace.has(fp)) {
-        await collection.doc(fingerprintsToReplace.get(fp)!).delete()
-        replacedCount++
-      }
-
-      questionsToImport.push(q)
-    }
-
-    // --- 5. Batch write to Firestore ---
-    let importedCount = 0
-    let failedCount = 0
-    const failures: string[] = []
-
-    for (let i = 0; i < questionsToImport.length; i += BATCH_SIZE) {
-      const batch = db.batch()
-      const batchItems = questionsToImport.slice(i, i + BATCH_SIZE)
-      const now = new Date()
-
-      batchItems.forEach((q) => {
-        const docRef = collection.doc()
-        batch.set(docRef, {
-          questionId: docRef.id,
-          id: docRef.id,
-          exam: q.exam,
-          year: q.year,
-          subject: q.subject,
-          topic: q.topic || null,
-          questionNumber: q.questionNumber || null,
-          question: q.question,
-          options: q.options,
-          correctAnswer: q.correctAnswer,
-          explanation: q.explanation || null,
-          paper: q.paper || null,
-          difficulty: q.difficulty || null,
-          source: q.source || null,
-          fingerprint: generateFingerprint({
-            exam: q.exam, year: q.year, subject: q.subject, question: q.question,
-          }),
-          createdAt: q.createdAt || now,
-          updatedAt: q.updatedAt || now,
-        })
-      })
-
-      try {
-        await batch.commit()
-        importedCount += batchItems.length
-      } catch (batchError: any) {
-        failedCount += batchItems.length
-        failures.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batchError.message}`)
-      }
-        }
-
+          return rows
+        },
+        newId: () => collection.doc().id,
+        write: async (id, data) => {
+          await collection.doc(id).set({ ...data })
+        },
+      },
+    )
     return NextResponse.json({
-      success: true,
-      imported: importedCount,
-      skipped: skippedCount,
-      replaced: replacedCount,
-      failed: failedCount,
-      failures,
-      duplicateAction,
+      ...result,
+      success: result.failed === 0,
+      duplicateAction: body.duplicateAction,
     })
-  } catch (error: any) {
-    console.error("Import error:", error)
-    const status = error.status || 500
-    return NextResponse.json({ error: `Import failed: ${error.message}` }, { status })
+  } catch {
+    return NextResponse.json(
+      { error: "Import failed. Existing questions have not been deleted." },
+      { status: 500 },
+    )
   }
 }
-
-/**
- * Query Firestore for existing questions with the given exam+subject.
- * Returns a Map of fingerprint → document ID.
- * Paginates through all matching documents (handles large collections).
- */
-async function fetchExistingFingerprints(
-  collection: any,
-  exam: string,
-  subject: string
-): Promise<Map<string, string>> {
-  const result = new Map<string, string>()
-  let lastDoc: any = null
-
-  while (true) {
-    let query: any = collection
-      .where("exam", "==", exam)
-      .where("subject", "==", subject)
-      .limit(BATCH_SIZE)
-
-    if (lastDoc) {
-      query = query.startAfter(lastDoc)
-    }
-
-    const snapshot = await query.get()
-
-    for (const doc of snapshot.docs) {
-      const data = doc.data()
-      const fp = data.fingerprint || generateFingerprint({
-        exam: data.exam, year: data.year, subject: data.subject, question: data.question,
-      })
-      result.set(fp, doc.id)
-    }
-
-    if (snapshot.size < BATCH_SIZE) break
-    lastDoc = snapshot.docs[snapshot.docs.length - 1] || null
-  }
-
-  return result
-}
-

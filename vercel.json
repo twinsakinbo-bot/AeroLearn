@@ -20,5 +20,10 @@
       "path": "/api/automation/status-email",
       "schedule": "0 23 * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "feat/waec-pilot-readiness": false
+    }
+  }
 }

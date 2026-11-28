@@ -3,11 +3,23 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { auth, onAuthStateChanged } from "@/lib/auth"
-import { arrayUnion, collection, db, doc, getDoc, getDocs, increment, limit, query, serverTimestamp, setDoc, updateDoc, where } from "@/lib/db"
-import { Award, BookOpen, Calculator, Check, ChevronLeft, ChevronRight, Loader2, Lock, Timer, Trophy, X, XCircle } from "lucide-react"
+import { db, doc, getDoc } from "@/lib/db"
+import {
+  Award,
+  BookOpen,
+  Calculator,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Lock,
+  Timer,
+  Trophy,
+  X,
+  XCircle,
+} from "lucide-react"
 import Link from "next/link"
 
-import { LibraryPendingNotice } from "@/components/ui/availability"
 import { EmptyState } from "@/components/ui/empty-state"
 import { LoadingState } from "@/components/ui/loading-state"
 import { PageHeader } from "@/components/ui/page-header"
@@ -15,52 +27,20 @@ import { CalculatorPanel } from "@/components/calculator/calculator-panel"
 import { SUBJECTS } from "@/lib/constants"
 import {
   correctLetterOf,
-  scoreAnswers,
   optionsOf,
   questionText,
-  shuffled,
   type OptionLetter,
   type QuestionOption,
   type StoredQuestion,
 } from "@/lib/questions"
-import { getUserSubscription, type UserSubscriptionInfo } from "@/lib/subscription"
+import { isProUser } from "@/lib/plan-access"
+import type { BankAvailability, MockMode, MockResult } from "@/lib/mock-exams"
 import { richText } from "@/lib/rich-text"
 import { cn } from "@/lib/utils"
 
-/**
- * Full timed mock exams.
- *
- * The old configuration UI had backdrop-blur 2.5rem/3rem cards, framer-motion
- * stagger, gradient buttons with shadow-accent/30, and forced Inter-900 ("font-black").
- * The exam view was a two-column split (question on left, navigator sidebar on
- * right) with another backdrop-blur card; the results page had a spinning green
- * circle, shadow-[0_0_30px_rgba(...)], and framer-motion stagger over answers.
- * All of that is now static PageHeader, card primitive, and standard buttons.
- *
- * Three substantive bugs fixed:
- *
- * 1. **Shuffle was weak** — `sort(() => 0.5 - Math.random())` is biased (adjacent
- *    swaps dominate, so some permutations never occur). Now uses `shuffled()` from
- *    `lib/questions.ts`, which is Fisher–Yates.
- * 2. **Timer closure read stale state** — the `setInterval` callback inside
- *    `useEffect(..., [examState, timeRemaining])` closed over the initial
- *    `handleSubmitExam`, which itself closed over the original `questions` and
- *    `answers`. If the user navigated forward/back or selected answers after the
- *    interval started, the submit fired with the old snapshot. Now `handleSubmitExam`
- *    is wrapped in a ref so the timer always calls the latest version.
- * 3. **Question-shape mismatch** — the page assumed `options` was a map `{A,B,C,D}`,
- *    but practice questions in Firestore can be either that or `[{id,text}]` (the
- *    route `/api/ai-quiz` returns arrays). Now uses `optionsOf()` and
- *    `correctLetterOf()` from `lib/questions.ts`, which normalize both.
- * 4. **Markup rendered as text** — imported past questions are HTML fragments, so
- *    `451<sub>6</sub> - P<sub>7</sub>` reached the screen with its tags showing and
- *    the two numbers looking like the same base. Question text, options and
- *    explanations go through `richText()` now.
- *
- * Minor: `alert()` for subject cap and early-submit confirmation replaced with banner
- * and confirm dialog. The Year select was removed — it was picked, stored, and never
- * read, because the query has no year column, so it promised a 2024 paper and gave
- * whatever was in the bank.
+/** Bank availability is checked per board; start and submit are server-owned.
+ * The browser keeps unsent answers in memory and retries the same attempt ID.
+ * The timer uses a wall-clock deadline; saved results are immutable snapshots.
  */
 
 const EXAM_TYPES = ["JAMB", "WAEC", "NECO"] as const
@@ -107,8 +87,7 @@ export default function MockExamsPage() {
   const router = useRouter()
   const [uid, setUid] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [subscription, setSubscription] = useState<UserSubscriptionInfo | null>(null)
-  const [userProfile, setUserProfile] = useState<any>(null)
+  const [subscription, setSubscription] = useState<{ isPro: boolean } | null>(null)
 
   const [state, setState] = useState<ExamState>("config")
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
@@ -123,16 +102,29 @@ export default function MockExamsPage() {
   const [score, setScore] = useState(0)
 
   const [banner, setBanner] = useState<Banner | null>(null)
-  /**
-   * Whether the question bank has anything in it at all.
-   *
-   * A mock exam is drawn from `practiceQuestions`, which is empty until an admin
-   * imports. Without this the student picks four subjects, waits on the fetch,
-   * and gets an error that reads as their mistake. One `limit(1)` probe on mount
-   * lets the page say so up front — and it stops saying so on its own the moment
-   * the bank has rows, which a hardcoded notice would not.
-   */
-  const [bankEmpty, setBankEmpty] = useState<boolean | null>(null)
+  const [availability, setAvailability] = useState<BankAvailability[] | null>(null)
+  const [availabilityError, setAvailabilityError] = useState(false)
+  const [availabilityVersion, setAvailabilityVersion] = useState(0)
+  const [draftAvailable, setDraftAvailable] = useState(false)
+  const [mode, setMode] = useState<MockMode>("full")
+  const [label, setLabel] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<"submit" | "exit" | null>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const deadlineRef = useRef(0)
+  const startRequestRef = useRef<{ key: string; id: string } | null>(null)
+  const request = async (body: unknown) => {
+    const token = await auth.currentUser?.getIdToken()
+    const response = await fetch("/api/mock-exams", {
+      method: "POST",
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const result = await response.json()
+    if (!response.ok) throw new Error(result.error || "The exam could not be saved. Please retry.")
+    return result
+  }
   const submitRef = useRef<(timeExpired?: boolean) => void>(() => {})
   const submittedRef = useRef(false)
   const resultIdRef = useRef("")
@@ -145,14 +137,8 @@ export default function MockExamsPage() {
       }
       setUid(user.uid)
       try {
-        const sub = await getUserSubscription(user.uid)
-        setSubscription(sub)
         const snap = await getDoc(doc(db, "users", user.uid))
-        if (snap.exists()) setUserProfile(snap.data())
-
-        /* One row is all we need to know whether a mock is possible at all. */
-        const probe = await getDocs(query(collection(db, "practiceQuestions"), limit(1)))
-        setBankEmpty(probe.empty)
+        if (snap.exists()) setSubscription({ isPro: isProUser(snap.data()) })
       } catch (error) {
         console.error("Failed to load your data:", error)
         setBanner({ tone: "error", text: "We could not load your account. Reload the page." })
@@ -163,13 +149,51 @@ export default function MockExamsPage() {
     return () => unsubscribe()
   }, [router])
 
-  /* Timer always calls the latest submit function. */
   useEffect(() => {
-    if (state !== "active") return
-    const timer = setInterval(() => setTimeRemaining((seconds) => Math.max(0, seconds - 1)), 1000)
-    return () => clearInterval(timer)
+    if (!uid) return
+    const controller = new AbortController()
+    setAvailability(null)
+    setAvailabilityError(false)
+    setSelectedSubjects([])
+    void (async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken()
+        const response = await fetch(`/api/mock-exams?exam=${examType}`, {
+          cache: "no-store",
+          signal: controller.signal,
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const result = await response.json()
+        if (!response.ok) throw new Error("Availability unavailable")
+        if (!controller.signal.aborted) {
+          setAvailability(result.subjects)
+          setDraftAvailable(result.draftReviewAvailable)
+        }
+      } catch {
+        if (!controller.signal.aborted) setAvailabilityError(true)
+      }
+    })()
+    return () => controller.abort()
+  }, [uid, examType, availabilityVersion])
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
   }, [state])
 
+  useEffect(() => {
+    if (confirmAction) dialogRef.current?.showModal()
+    else dialogRef.current?.close()
+  }, [confirmAction])
+
+  // Wall-clock deadline survives background-tab throttling; no drifting decrement counter.
+  useEffect(() => {
+    if (state !== "active") return
+    const timer = setInterval(
+      () => setTimeRemaining(Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000))),
+      250,
+    )
+    return () => clearInterval(timer)
+  }, [state])
   useEffect(() => {
     if (state === "active" && timeRemaining === 0) submitRef.current(true)
   }, [state, timeRemaining])
@@ -177,10 +201,13 @@ export default function MockExamsPage() {
   const toggleSubject = (subject: string) => {
     setSelectedSubjects((prev) => {
       if (prev.includes(subject)) return prev.filter((s) => s !== subject)
-      if (prev.length >= SUBJECT_CAP) {
+      if (prev.length >= (mode === "full" ? SUBJECT_CAP : 1)) {
         setBanner({
           tone: "error",
-          text: `You can pick up to ${SUBJECT_CAP} subjects per exam.`,
+          text:
+            mode === "full"
+              ? `You can pick up to ${SUBJECT_CAP} subjects per exam.`
+              : "Choose one subject for short revision.",
         })
         return prev
       }
@@ -188,73 +215,36 @@ export default function MockExamsPage() {
     })
   }
 
-  const start = async () => {
-    if (!uid || selectedSubjects.length === 0) return
-
-    if (!subscription?.isPro) {
-      const today = new Date()
-      const lastExam = userProfile?.lastMockExamDate ? new Date(userProfile.lastMockExamDate) : null
-      if (lastExam) {
-        const diffDays = Math.ceil(Math.abs(today.getTime() - lastExam.getTime()) / (1000 * 60 * 60 * 24))
-        if (diffDays < 7) {
-          setBanner({
-            tone: "error",
-            text: `Free users are limited to one mock per week. You have ${7 - diffDays} day${7 - diffDays === 1 ? "" : "s"} left.`,
-          })
-          return
-        }
-      }
-    }
-
+  const start = async (draft = false) => {
+    if (!uid || (!draft && selectedSubjects.length === 0)) return
     setFetching(true)
     setBanner(null)
-    let pool: StoredQuestion[] = []
-
     try {
-      for (const subject of selectedSubjects) {
-        const q = query(
-          collection(db, "practiceQuestions"),
-          where("subject", "==", subject),
-          where("exam", "==", examType),
-        )
-        const snapshot = await getDocs(q)
-        const subjectQuestions = snapshot.docs
-          .map((d) => ({ id: d.id, ...d.data() } as StoredQuestion))
-          .filter((q) => optionsOf(q).length >= 2 && correctLetterOf(q))
-
-        pool.push(...shuffled(subjectQuestions).slice(0, 40))
-      }
-
-      if (pool.length === 0) {
-        /* Not the student's fault, and not a configuration they got wrong — the
-           library simply has nothing under those subjects yet. Say that, and
-           point at the thing that does work. */
-        setBanner({
-          tone: "error",
-          text: `No ${examType} questions have been imported for ${
-            selectedSubjects.length === 1 ? selectedSubjects[0] : "those subjects"
-          } yet. Try other subjects, or use AI practice, which covers the same syllabus.`,
-        })
-        setFetching(false)
-        return
-      }
-
-      setQuestions(pool)
+      const key = JSON.stringify([draft, examType, selectedSubjects, mode])
+      if (startRequestRef.current?.key !== key) startRequestRef.current = { key, id: crypto.randomUUID() }
+      const result = await request({
+        action: "start",
+        requestId: startRequestRef.current.id,
+        exam: draft ? "WAEC" : examType,
+        subjects: draft ? ["Mathematics"] : selectedSubjects,
+        mode: draft ? "draft_review" : mode,
+      })
+      startRequestRef.current = null
+      setQuestions(result.questions)
+      setMode(result.mode)
+      setLabel(result.label)
       submittedRef.current = false
-      resultIdRef.current = crypto.randomUUID()
+      resultIdRef.current = result.id
+      deadlineRef.current = Date.parse(result.startedAt) + result.durationSeconds * 1000
       setAnswers({})
       setIndex(0)
-      setTimeRemaining(pool.length * 60)
+      setTimeRemaining(Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000)))
       setState("active")
-
-      if (!subscription?.isPro) {
-        await updateDoc(doc(db, "users", uid), {
-          lastMockExamDate: new Date().toISOString(),
-        })
-      }
     } catch (error) {
-      console.error("Failed to load questions:", error)
-      setBanner({ tone: "error", text: "The exam did not load. Try again." })
+      setBanner({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The exam did not load. Retry.",
+      })
     } finally {
       setFetching(false)
     }
@@ -266,39 +256,33 @@ export default function MockExamsPage() {
     setAnswers((prev) => ({ ...prev, [qid]: letter }))
   }
 
-  const submit = (timeExpired = false) => {
+  const submit = async (confirmed = false) => {
     if (state !== "active" || submittedRef.current) return
-    if (!timeExpired && timeRemaining > 0) {
-      const confirmed = confirm("Submit early? You cannot undo this.")
-      if (!confirmed) return
+    if (!confirmed) {
+      setConfirmAction("submit")
+      return
     }
     submittedRef.current = true
-
-    const totalScore = scoreAnswers(questions, answers)
-    setScore(totalScore)
-    setShowCalculator(false)
-    setState("results")
-
-    if (uid) {
-      updateDoc(doc(db, "users", uid), {
-        xp: increment(totalScore * 5),
-        coins: increment(totalScore * 2),
-        subjectsStudied: arrayUnion(...selectedSubjects),
-      }).catch((error) => {
-        console.error("Could not save mock exam rewards:", error)
-        setBanner({ tone: "error", text: "Your exam rewards could not be saved. Please check your connection." })
+    setConfirmAction(null)
+    setSaving(true)
+    setBanner(null)
+    try {
+      const { result } = (await request({ action: "submit", attemptId: resultIdRef.current, answers })) as {
+        result: MockResult
+      }
+      setScore(result.score)
+      setQuestions(result.questions)
+      setAnswers(result.answers)
+      setShowCalculator(false)
+      setState("results")
+    } catch (error) {
+      submittedRef.current = false
+      setBanner({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Your result was not saved. Retry submission.",
       })
-      setDoc(doc(db, "quizResults", resultIdRef.current), {
-        userId: uid,
-        source: "mock_exam",
-        exam: examType,
-        score: totalScore,
-        totalQuestions: questions.length,
-        createdAt: serverTimestamp(),
-      }).catch((error) => {
-        console.error("Could not save mock exam result:", error)
-        setBanner({ tone: "error", text: "Your mock exam score could not be saved to Progress. Please check your connection." })
-      })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -306,6 +290,9 @@ export default function MockExamsPage() {
 
   const reset = () => {
     setShowCalculator(false)
+    setConfirmAction(null)
+    setMode("full")
+    setLabel(null)
     submittedRef.current = false
     resultIdRef.current = ""
     setState("config")
@@ -324,8 +311,22 @@ export default function MockExamsPage() {
     return (
       <div className="animate-fade-in">
         <PageHeader eyebrow="Mock exam" title="Results" onBack={reset} backLabel="Back to setup" />
-        {banner && <p role="alert" className="mb-5 rounded-lg border border-danger/30 bg-danger/[0.06] px-4 py-3 text-body-sm text-danger">{banner.text}</p>}
+        {banner && (
+          <p
+            role="alert"
+            className="mb-5 rounded-lg border border-danger/30 bg-danger/[0.06] px-4 py-3 text-body-sm text-danger"
+          >
+            {banner.text}
+          </p>
+        )}
 
+        <p role="status" className="mb-4 text-body-sm text-muted">
+          Saved to your history.{" "}
+          {mode === "draft_review"
+            ? "Draft review is excluded from learner progress totals and rewards."
+            : "Your progress has been updated."}
+        </p>
+        {label && <p className="mb-4 rounded-lg border border-warn p-3 text-body-sm">{label}</p>}
         <div className="card p-6 sm:p-8 text-center">
           <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-streak/[0.12] text-streak">
             <Trophy size={32} aria-hidden="true" />
@@ -338,8 +339,8 @@ export default function MockExamsPage() {
             <button type="button" onClick={reset} className="btn-secondary">
               Take another mock
             </button>
-            <Link href="/app" className="btn-primary">
-              Back to dashboard
+            <Link href="/app/progress" className="btn-primary">
+              View progress and history
             </Link>
           </div>
         </div>
@@ -353,7 +354,7 @@ export default function MockExamsPage() {
             {questions.map((q, idx) => {
               const options = optionsOf(q)
               const correct = correctLetterOf(q)
-              const userAnswer = q.id ? answers[q.id] ?? null : null
+              const userAnswer = q.id ? (answers[q.id] ?? null) : null
               const isCorrect = correct && userAnswer === correct
               return (
                 <li
@@ -403,18 +404,25 @@ export default function MockExamsPage() {
                             >
                               {option.letter}
                             </span>
-                            <span className="text-body-sm font-medium text-foreground">{richText(option.text)}</span>
+                            <span className="text-body-sm font-medium text-foreground">
+                              {richText(option.text)}
+                            </span>
                           </div>
                         </li>
                       )
                     })}
                   </ul>
 
-                  {!isCorrect && q.explanation && (
+                  {q.explanation ? (
                     <div className="mt-4 rounded-lg border border-accent/30 bg-accent/[0.04] p-4 text-body-sm text-muted">
-                      <strong className="font-semibold text-foreground">Why:</strong>{" "}
+                      <strong className="font-semibold text-foreground">Worked explanation:</strong>{" "}
                       {richText(q.explanation)}
                     </div>
+                  ) : (
+                    <p className="mt-4 text-body-sm text-muted">
+                      A worked explanation is not available for this imported question. No AI answer has been
+                      substituted.
+                    </p>
                   )}
                 </li>
               )
@@ -429,7 +437,7 @@ export default function MockExamsPage() {
     const question = questions[index]
     if (!question) return null
     const options = optionsOf(question)
-    const selected = question.id ? answers[question.id] ?? null : null
+    const selected = question.id ? (answers[question.id] ?? null) : null
     const progress = Math.round(((index + 1) / questions.length) * 100)
 
     return (
@@ -437,10 +445,8 @@ export default function MockExamsPage() {
         <header className="mb-6 flex items-center gap-3">
           <button
             type="button"
-            onClick={() => {
-              const confirmed = confirm("Exit the exam? Your progress will be lost.")
-              if (confirmed) reset()
-            }}
+            onClick={() => setConfirmAction("exit")}
+            disabled={saving}
             aria-label="Exit the exam"
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hairline bg-surface text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
           >
@@ -454,7 +460,15 @@ export default function MockExamsPage() {
             />
           </div>
 
-          <button type="button" onClick={() => setShowCalculator(true)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hairline bg-surface text-accent" aria-label="Open practice calculator" title="Open practice calculator"><Calculator size={18} aria-hidden="true" /></button>
+          <button
+            type="button"
+            onClick={() => setShowCalculator(true)}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hairline bg-surface text-accent"
+            aria-label="Open practice calculator"
+            title="Open practice calculator"
+          >
+            <Calculator size={18} aria-hidden="true" />
+          </button>
           <span
             className={cn(
               "shrink-0 rounded-lg border px-3 py-1.5 text-caption font-semibold tabular-nums",
@@ -470,21 +484,78 @@ export default function MockExamsPage() {
         </header>
 
         {showCalculator && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCalculator(false) }}>
-            <div role="dialog" aria-modal="true" aria-label="Practice calculator" className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
-              <div className="mb-2 flex justify-end"><button type="button" onClick={() => setShowCalculator(false)} className="rounded-full bg-surface p-2 text-foreground" aria-label="Close calculator"><X size={18} /></button></div>
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowCalculator(false)
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Practice calculator"
+              className="w-full max-w-sm max-h-[90vh] overflow-y-auto"
+            >
+              <div className="mb-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowCalculator(false)}
+                  className="rounded-full bg-surface p-2 text-foreground"
+                  aria-label="Close calculator"
+                >
+                  <X size={18} />
+                </button>
+              </div>
               <CalculatorPanel mode={examType === "JAMB" ? "basic" : "scientific"} />
             </div>
           </div>
         )}
+        <dialog
+          ref={dialogRef}
+          onCancel={() => setConfirmAction(null)}
+          className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-hairline bg-surface p-6 text-foreground backdrop:bg-black/50"
+          aria-labelledby="mock-confirm-title"
+        >
+          <h2 id="mock-confirm-title" className="text-h3 font-semibold">
+            {confirmAction === "exit" ? "Leave this exam?" : "Submit exam?"}
+          </h2>
+          <p className="mt-3 text-body-sm text-muted">
+            {confirmAction === "exit"
+              ? "Your unsent answers will be lost."
+              : `${Object.keys(answers).length} of ${questions.length} answered. Unanswered questions score zero. You cannot change answers after submission.`}
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button autoFocus type="button" className="btn-secondary" onClick={() => setConfirmAction(null)}>
+              Keep working
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => (confirmAction === "exit" ? reset() : void submit(true))}
+            >
+              {confirmAction === "exit" ? "Leave exam" : "Confirm submission"}
+            </button>
+          </div>
+        </dialog>
         <div className="mx-auto max-w-5xl">
+          {label && <p className="mb-4 rounded-lg border border-warn p-3 text-body-sm">{label}</p>}
+          {banner && (
+            <p role="alert" className="mb-4 text-body-sm text-danger">
+              {banner.text}
+            </p>
+          )}
+          <p className="mb-3 text-caption text-muted">
+            Content source: {question.source || "Imported bank; source not recorded."}
+          </p>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/[0.06] px-3 py-1.5 text-caption font-semibold text-accent">
               <BookOpen size={14} aria-hidden="true" />
               {question.subject}
             </span>
             <span className="text-body-sm font-medium text-muted">
-              Question {index + 1} of {questions.length}
+              Question {index + 1} of {questions.length} · {question.exam} ·{" "}
+              {mode === "draft_review" ? "Original practice, 2026" : question.year || "Year not recorded"}
             </span>
           </div>
 
@@ -500,6 +571,7 @@ export default function MockExamsPage() {
                   <button
                     type="button"
                     onClick={() => select(option.letter)}
+                    disabled={saving || timeRemaining === 0}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors",
                       OPTION_CLASSES[tone],
@@ -513,9 +585,7 @@ export default function MockExamsPage() {
                     >
                       {option.letter}
                     </span>
-                    <span className="text-body-sm font-medium text-foreground">
-                      {richText(option.text)}
-                    </span>
+                    <span className="text-body-sm font-medium text-foreground">{richText(option.text)}</span>
                   </button>
                 </li>
               )
@@ -524,7 +594,7 @@ export default function MockExamsPage() {
         </div>
 
         {/* Navigator sidebar */}
-        <aside className="card p-4 fixed bottom-20 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] sm:bottom-6 md:right-8">
+        <aside className="card mx-auto mt-6 max-w-5xl p-4">
           <h2 className="mb-3 text-caption font-semibold uppercase tracking-wide text-muted">
             Question navigator
           </h2>
@@ -554,15 +624,16 @@ export default function MockExamsPage() {
           </div>
           <button
             type="button"
-            onClick={() => submit()}
+            onClick={() => void submit()}
+            disabled={saving}
             className="btn-primary mt-4 w-full"
           >
-            Submit exam
+            {saving ? "Saving result…" : banner ? "Retry submission" : "Submit exam"}
           </button>
         </aside>
 
         {/* Footer navigation */}
-        <div className="fixed bottom-20 left-0 right-0 z-40 bg-gradient-to-t from-surface via-surface to-transparent p-4 sm:bottom-6 md:pl-64">
+        <div className="mx-auto mt-6 max-w-5xl">
           <div className="mx-auto flex max-w-5xl items-center justify-between">
             <button
               type="button"
@@ -592,8 +663,8 @@ export default function MockExamsPage() {
     <div className="animate-fade-in">
       <PageHeader
         eyebrow="Mock exams"
-        title="Full timed simulations"
-        subtitle="Practice under real exam conditions with WAEC, NECO, and JAMB questions."
+        title="Timed mocks and short revision"
+        subtitle="Choose an available question bank. Each question has one minute; these are revision activities, not official exam papers."
       />
 
       {banner && (
@@ -610,12 +681,41 @@ export default function MockExamsPage() {
         </p>
       )}
 
-      {bankEmpty && (
-        <LibraryPendingNotice
-          className="mb-6"
-          title="No papers to sit yet"
-          detail="No past questions have been imported into the library yet, so there is nothing to assemble a timed paper from. AI-generated practice covers the same syllabus in the meantime."
-        />
+      {availabilityError && (
+        <p role="alert" className="mb-5 text-danger">
+          Question availability could not be checked.{" "}
+          <button type="button" className="link-inline" onClick={() => setAvailabilityVersion((v) => v + 1)}>
+            Retry availability
+          </button>
+        </p>
+      )}
+      {!availabilityError && availability === null && (
+        <p role="status" className="mb-5">
+          Checking {examType} question availability…
+        </p>
+      )}
+      {availability?.length === 0 && (
+        <p role="status" className="mb-5">
+          No usable {examType} questions are available. Choose another board or return later. No mock
+          allowance has been used.
+        </p>
+      )}
+      {draftAvailable && (
+        <section className="card mb-6 p-4">
+          <h2 className="font-semibold">Teacher review: original SS3 Mathematics draft</h2>
+          <p className="mt-2 text-body-sm text-muted">
+            8 original WAEC-style questions, 8 minutes. Pending teacher approval; not official past questions.
+            This private review does not use weekly mock allowances, AI quotas or learner rewards.
+          </p>
+          <button
+            type="button"
+            disabled={fetching}
+            onClick={() => void start(true)}
+            className="btn-secondary mt-3"
+          >
+            Review draft Mathematics
+          </button>
+        </section>
       )}
 
       {!subscription?.isPro && (
@@ -627,7 +727,7 @@ export default function MockExamsPage() {
             <div className="min-w-0 flex-1">
               <h2 className="text-body font-semibold text-foreground">Free tier limit</h2>
               <p className="mt-1 text-body-sm text-muted">
-                You are limited to one mock per week.{" "}
+                You are limited to one full mock per week. Short revision uses no weekly mock allowance.{" "}
                 <Link href="/app/upgrade" className="font-semibold text-accent hover:underline">
                   Upgrade to Pro
                 </Link>{" "}
@@ -639,6 +739,23 @@ export default function MockExamsPage() {
       )}
 
       <div className="card p-5 sm:p-6">
+        <div className="mb-5 sm:max-w-xs">
+          <label htmlFor="mock-mode" className="field-label">
+            Activity length
+          </label>
+          <select
+            id="mock-mode"
+            className="select-premium"
+            value={mode}
+            onChange={(e) => {
+              setMode(e.target.value as MockMode)
+              setSelectedSubjects([])
+            }}
+          >
+            <option value="full">Full mock: up to 40 per subject</option>
+            <option value="revision">Short revision: up to 8 questions</option>
+          </select>
+        </div>
         <div className="sm:max-w-xs">
           <label htmlFor="examType" className="field-label">
             Exam type
@@ -656,14 +773,17 @@ export default function MockExamsPage() {
             ))}
           </select>
           <p className="mt-2 text-caption text-subtle">
-            Your paper is drawn from every year in the library for this board.
+            Questions may come from multiple years. The board, source and year remain attached to each item.
           </p>
         </div>
 
         <div className="mt-6 border-t border-hairline pt-6">
           <div className="mb-3 flex items-baseline justify-between gap-3">
             <label className="field-label">
-              Select subjects <span className="text-accent">({selectedSubjects.length}/{SUBJECT_CAP})</span>
+              Select subjects{" "}
+              <span className="text-accent">
+                ({selectedSubjects.length}/{mode === "full" ? SUBJECT_CAP : 1})
+              </span>
             </label>
             {selectedSubjects.length === 0 && (
               <span className="text-caption font-semibold text-danger">Pick at least one</span>
@@ -672,11 +792,14 @@ export default function MockExamsPage() {
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
             {SUBJECTS.map((subject) => {
               const chosen = selectedSubjects.includes(subject)
+              const available = availability?.find((item) => item.subject === subject)
               return (
                 <li key={subject}>
                   <button
                     type="button"
                     onClick={() => toggleSubject(subject)}
+                    disabled={!available?.count}
+                    aria-pressed={chosen}
                     className={cn(
                       "flex w-full items-center justify-between gap-2 rounded-lg border p-3 text-left text-body-sm font-medium transition-colors",
                       chosen
@@ -684,7 +807,16 @@ export default function MockExamsPage() {
                         : "border-hairline text-muted hover:bg-surface-hover hover:text-foreground",
                     )}
                   >
-                    <span className="truncate">{subject}</span>
+                    <span className="min-w-0 break-words">
+                      {subject}
+                      <span className="mt-1 block text-caption">
+                        {available
+                          ? `${available.count} available · ${available.withExplanations} with explanations`
+                          : availability
+                            ? "Unavailable"
+                            : "Checking…"}
+                      </span>
+                    </span>
                     {chosen && <Check size={14} className="shrink-0" aria-hidden="true" />}
                   </button>
                 </li>
@@ -696,15 +828,23 @@ export default function MockExamsPage() {
         {selectedSubjects.length > 0 && (
           <p className="mt-6 border-t border-hairline pt-6 text-body-sm text-muted">
             <strong className="font-semibold text-foreground">Exam duration:</strong>{" "}
-            {selectedSubjects.length * 40} questions, roughly {selectedSubjects.length} hour
-            {selectedSubjects.length === 1 ? "" : "s"}.
+            {selectedSubjects.reduce(
+              (total, subject) =>
+                total +
+                Math.min(
+                  mode === "full" ? 40 : 8,
+                  availability?.find((item) => item.subject === subject)?.count ?? 0,
+                ),
+              0,
+            )}{" "}
+            questions and the same number of minutes (one minute per question).
           </p>
         )}
 
         <button
           type="button"
-          onClick={start}
-          disabled={selectedSubjects.length === 0 || fetching || bankEmpty === true}
+          onClick={() => void start()}
+          disabled={selectedSubjects.length === 0 || fetching || availability === null || availabilityError}
           className="btn-primary mt-6 w-full sm:w-auto"
         >
           {fetching && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
@@ -715,4 +855,3 @@ export default function MockExamsPage() {
     </div>
   )
 }
-
