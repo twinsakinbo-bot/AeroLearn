@@ -99,6 +99,14 @@ export async function licensingHttp(
         p_payload: command.payload,
       },
     );
+    if (error?.code === "23505" && command.action === "approve_term")
+      return reply(
+        {
+          error:
+            "This payment reference is already assigned to an institutional term, including cancelled terms. It cannot be reused. Splits, refunds and reallocations require a separately approved, audited workflow.",
+        },
+        409,
+      );
     if (error)
       return reply(
         {

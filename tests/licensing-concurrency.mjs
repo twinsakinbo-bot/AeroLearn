@@ -96,7 +96,10 @@ function newTerm(cap) {
         renewal_of: null,
       }) +
       ";" +
-      command("approve_term", { id: term, approval_ref: "SYNTHETIC-RACE" }) +
+      command("approve_term", {
+        id: term,
+        approval_ref: `SYNTHETIC-RACE:${term}`,
+      }) +
       ";" +
       command("activate_term", { id: term }),
   );
@@ -311,4 +314,83 @@ assert.equal(
 );
 console.log(
   "Institutional licensing: 9 deterministic row-lock barriers passed (last seat, batch retry, competing claim, claim retry, revocation, code expiry, activation, term expiry, issuance quota); retail balances and lifetime access preserved.",
+);
+
+// Payment uniqueness is global, not scoped to the school-row locks above.
+const otherOrg = "b1000000-0000-4000-8000-000000000002";
+const paymentCommand = (school, action, payload) =>
+  `select public.institutional_licensing_command('${action}','${school}','${JSON.stringify(payload)}'::jsonb)`;
+function draftPayment(school, cohort) {
+  const id = crypto.randomUUID();
+  sql(
+    auth(1) +
+      paymentCommand(school, "draft_term", {
+        id,
+        cohort_id: cohort,
+        starts_at: new Date(Date.now() - 86400000).toISOString(),
+        ends_at: new Date(Date.now() + 86400000 * 2).toISOString(),
+        seat_cap: 1,
+        quoted_minor: 10000,
+        renewal_of: null,
+      }),
+  );
+  return id;
+}
+const payA = draftPayment(org, "b2000000-0000-4000-8000-000000000001");
+const payB = draftPayment(otherOrg, "b2000000-0000-4000-8000-000000000002");
+await race(
+  "cross-school-payment",
+  auth(1),
+  paymentCommand(org, "approve_term", {
+    id: payA,
+    approval_ref: "BANK:CONCURRENT-001",
+  }),
+  auth(1),
+  paymentCommand(otherOrg, "approve_term", {
+    id: payB,
+    approval_ref: " bank : concurrent-001 ",
+  }),
+  "23505",
+);
+assert.equal(
+  sql(
+    `select count(*) from public.institutional_terms where approval_ref_key='BANK:CONCURRENT-001'`,
+  ),
+  "1",
+);
+assert.equal(
+  sql(`select state from public.institutional_terms where id='${payB}'`),
+  "draft",
+);
+assert.equal(
+  sql(
+    `select count(*) from public.institutional_license_events where term_id='${payB}' and action='approve_term'`,
+  ),
+  "0",
+);
+// Different payments in different schools must both finish without a shared global lock.
+const distinctA = draftPayment(org, "b2000000-0000-4000-8000-000000000001");
+const sa = session("payment-distinct-a"),
+  sb = session("payment-distinct-b");
+sa.write(
+  `begin;${auth(1)}${paymentCommand(org, "approve_term", { id: distinctA, approval_ref: "BANK:INDEPENDENT-002" })};select 'APPROVED';`,
+);
+await sa.marker("APPROVED");
+sb.write(
+  `${auth(1)}${paymentCommand(otherOrg, "approve_term", { id: payB, approval_ref: "BANK:INDEPENDENT-003" })};select 'INDEPENDENT';`,
+);
+await sb.marker("INDEPENDENT");
+sb.end();
+assert.equal((await sb.done).code, 0);
+sa.write("commit;");
+sa.end();
+assert.equal((await sa.done).code, 0);
+assert.equal(
+  sql(
+    `select count(*) from public.institutional_terms where approval_ref_key in ('BANK:INDEPENDENT-002','BANK:INDEPENDENT-003')`,
+  ),
+  "2",
+);
+console.log(
+  "Financial concurrency: identical normalized references across two schools yield one approval and one 23505 conflict; distinct payments commit independently.",
 );

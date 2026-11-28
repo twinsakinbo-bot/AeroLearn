@@ -6,6 +6,8 @@ PR #4 was verified at exactly `0defd6a1f41fe783b05286e22beb57f144ff6951` and mer
 
 Source: [Dan’s institutional handoff](https://docs.google.com/document/d/1Kn-Lj3Q-va5CEbMfmH-CGyidzA63HFVZQfWZmUqTreI/edit), read before implementation. This implements its P0-B term/seat model. Main, production and hosted projects are untouched. Branch deployment is explicitly disabled in `vercel.json`.
 
+Financial-integrity follow-up: see [canonical payment references, global uniqueness, reconciliation preservation and validation-order regressions](p0-b-financial-integrity.md).
+
 ## Model and authority
 
 - Each school term belongs to an existing cohort. It fixes UTC instants, capacity (1–5,000), an NGN quote in integer minor units and an optional prior term. There is no payment-service integration or automatic charge.

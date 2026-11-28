@@ -19,11 +19,12 @@ run_sql() {
 docker cp tests/fixtures/licensing-fixture.sql "$test_container:/tmp/aerolearn-licensing-fixture.sql"
 run_sql tests/fixtures/supabase-bootstrap.sql
 for migration in supabase/migrations/*.sql; do run_sql "$migration"; done
-for test_file in tests/security-policies.sql tests/security-access.sql tests/payment-approval.sql tests/licence-redemption.sql tests/shared-rate-limit.sql tests/institutional-security.sql tests/mock-exam-sessions.sql tests/targeted-hardening.sql tests/profile-integrity.sql tests/institutional-licensing.sql; do
+for test_file in tests/security-policies.sql tests/security-access.sql tests/payment-approval.sql tests/licence-redemption.sql tests/shared-rate-limit.sql tests/institutional-security.sql tests/mock-exam-sessions.sql tests/targeted-hardening.sql tests/profile-integrity.sql tests/institutional-licensing.sql tests/institutional-payment-integrity.sql; do
   run_sql "$test_file"
 done
 bash tests/institutional-concurrency.sh "$test_container"
 bash tests/invitation-rate-concurrency.sh "$test_container"
 node tests/profile-concurrency.mjs "$test_container"
 node tests/licensing-concurrency.mjs "$test_container"
+node tests/payment-reference-upgrade.mjs "$test_container"
 echo "Database migration and access checks passed."

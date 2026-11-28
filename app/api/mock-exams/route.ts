@@ -152,6 +152,20 @@ export async function POST(request: Request) {
       body.subjects.length > (mode === "full" ? 4 : 1)
     )
       return reply({ error: "Choose valid subjects." }, 400)
+    const school = body.institutionId
+    if ((school !== undefined || request.headers.has('x-institution-id')) && (typeof school !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(school) || request.headers.get('x-institution-id') !== school))
+      return reply({ error: 'Choose a matching school context.' }, 400)
+    if (school && (process.env.INSTITUTIONAL_MVP_ENABLED !== 'true' || process.env.INSTITUTIONAL_LICENSING_ENABLED !== 'true' || mode === 'draft_review'))
+      return reply({ error: 'School revision is unavailable.' }, 403)
+    if (school) {
+      // Cheap preflight before reading any question content. The service bridge
+      // rechecks this under the school lock when the attempt actually starts.
+      const { data: context, error: contextError } = await gate.client.rpc(
+        'institutional_licensing_context', { p_institution_id: school },
+      )
+      if (contextError || !context?.entitlement)
+        return reply({ error: 'Your school revision entitlement is unavailable. Refresh school access.' }, 403)
+    }
     const subjects = [...new Set((body.subjects as string[]).map(canonicalSubject))]
     let questions: MockQuestion[]
     if (mode === "draft_review") {
@@ -173,11 +187,6 @@ export async function POST(request: Request) {
         throw error
       }
     }
-    const school = body.institutionId
-    if (school !== undefined && (typeof school !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(school) || request.headers.get('x-institution-id') !== school))
-      return reply({ error: 'Choose a matching school context.' }, 400)
-    if (school && (process.env.INSTITUTIONAL_MVP_ENABLED !== 'true' || process.env.INSTITUTIONAL_LICENSING_ENABLED !== 'true' || mode === 'draft_review'))
-      return reply({ error: 'School revision is unavailable.' }, 403)
     const profile = await getAdminDb().collection("users").doc(gate.uid).get()
     const { data, error } = await getSupabaseAdmin().rpc(school ? "start_institutional_mock" : "start_mock_attempt", {
       p_uid: gate.uid,

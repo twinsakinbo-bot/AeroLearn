@@ -18,6 +18,21 @@ const req = (body: unknown = command, school = org) =>
   });
 test("licensing contract rejects caller roles, cross-school links, prices, malformed dates and oversized batches", () => {
   assert.deepEqual(parseLicensingCommand(command), command);
+  assert.ok(
+    parseLicensingCommand({
+      action: "approve_term",
+      institution_id: org,
+      payload: { id, approval_ref: " \tbank: inv-001\r\n" },
+    }),
+  );
+  assert.equal(
+    parseLicensingCommand({
+      action: "approve_term",
+      institution_id: org,
+      payload: { id, approval_ref: "BANK:\u00a0INV-001" },
+    }),
+    null,
+  );
   for (const bad of [
     { ...command, actor: id },
     { ...command, payload: { ...command.payload, role: "operator" } },
@@ -164,6 +179,19 @@ test("licensing transport validates live Auth, pins school, preserves safe retri
       assert.equal(r.status, status);
       assert.doesNotMatch(await r.text(), /PRIVATE/);
     }
+    dbCode = "23505";
+    r = await licensingHttp(
+      req({
+        action: "approve_term",
+        institution_id: org,
+        payload: { id, approval_ref: "bank: inv-001" },
+      }),
+      cfg,
+    );
+    assert.equal(r.status, 409);
+    const conflict = await r.text();
+    assert.match(conflict, /already assigned.*cancelled terms/);
+    assert.doesNotMatch(conflict, /PRIVATE/);
     dbCode = "";
     for (const [error, status] of [
       ["invalid_code", 409],

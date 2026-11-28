@@ -171,7 +171,10 @@ export function parseLicensingCommand(v: unknown): LicensingCommand | null {
       valid =
         exact(p, ["id", "approval_ref"]) &&
         isUuid(p.id) &&
-        text(p.approval_ref, 3, 80);
+        typeof p.approval_ref === "string" &&
+        p.approval_ref.length >= 3 &&
+        p.approval_ref.length <= 80 &&
+        /^[A-Za-z0-9._:/ \t\r\n\f\v-]+$/.test(p.approval_ref);
       break;
     case "activate_term":
       valid = exact(p, ["id"]) && isUuid(p.id);

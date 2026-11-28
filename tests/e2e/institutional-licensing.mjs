@@ -485,6 +485,96 @@ export async function verifyInstitutionalLicensing({
     ).rows,
   );
   for (const code of codes) assert.ok(!rawAudit.includes(code));
+  // Financial-integrity regression: cancelled references remain reserved globally.
+  const cohortB = (
+    await command("adminB", "create_cohort", b, {
+      name: "Synthetic payment cohort B",
+    })
+  ).id;
+  const paymentTermB = crypto.randomUUID();
+  assert.equal(
+    (
+      await call(
+        "operator",
+        "draft_term",
+        {
+          id: paymentTermB,
+          cohort_id: cohortB,
+          starts_at: new Date(term.starts_at).toISOString(),
+          ends_at: new Date(term.ends_at).toISOString(),
+          seat_cap: 1,
+          quoted_minor: 100000,
+          renewal_of: null,
+        },
+        b,
+      )
+    ).status,
+    200,
+  );
+  for (const [id, org] of [
+    [renewalId, a],
+    [paymentTermB, b],
+  ]) {
+    const conflict = await call(
+      "operator",
+      "approve_term",
+      { id, approval_ref: "  synthetic - approved - 001  " },
+      org,
+    );
+    assert.equal(conflict.status, 409);
+    assert.match(conflict.body.error, /already assigned.*cancelled terms/);
+    assert.ok(!conflict.body.error.includes(term.id));
+    assert.ok(!conflict.body.error.includes(a));
+  }
+  assert.equal(
+    (
+      await call(
+        "adminB",
+        "approve_term",
+        { id: paymentTermB, approval_ref: "SYNTHETIC-APPROVED-001" },
+        b,
+      )
+    ).status,
+    403,
+  );
+  const payments = await Promise.all([
+    call(
+      "operator",
+      "approve_term",
+      { id: renewalId, approval_ref: "BANK:REAL-CONCURRENT-003" },
+      a,
+    ),
+    call(
+      "operator",
+      "approve_term",
+      { id: paymentTermB, approval_ref: " bank : real-concurrent-003 " },
+      b,
+    ),
+  ]);
+  assert.deepEqual(payments.map((p) => p.status).sort(), [200, 409]);
+  const loser = payments[0].status === 409 ? [renewalId, a] : [paymentTermB, b];
+  assert.equal(
+    (
+      await call(
+        "operator",
+        "approve_term",
+        { id: loser[0], approval_ref: "BANK:REAL-DISTINCT-004" },
+        loser[1],
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await pool.query(
+        "select count(*) from public.institutional_terms where approval_ref_key='BANK:REAL-CONCURRENT-003'",
+      )
+    ).rows[0].count,
+    "1",
+  );
+  console.log(
+    "Real PostgREST/Next financial approval: cancelled and cross-school reference reuse returns 409; concurrent approvals create one reservation; distinct payment succeeds.",
+  );
   await command("operator", "deactivate_institution", a, {});
   const inactive = await request("operator", endpoint, null, a);
   assert.equal(inactive.status, 200);
