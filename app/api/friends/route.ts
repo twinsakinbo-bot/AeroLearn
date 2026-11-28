@@ -1,3 +1,4 @@
+import { denyProtectedLearner } from '@/lib/institutional/safeguards'
 /**
  * Friend requests: send, accept, decline, cancel, unfriend.
  *
@@ -74,6 +75,8 @@ export async function POST(req: Request) {
   if (targetId === gate.uid) return fail("You cannot add yourself.", 400)
 
   try {
+    const blocked = await denyProtectedLearner(targetId)
+    if (blocked) return blocked
     const db = getAdminDb()
     const users = db.collection("users")
     const meRef = users.doc(gate.uid)
