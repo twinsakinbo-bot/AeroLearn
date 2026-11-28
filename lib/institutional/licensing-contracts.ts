@@ -2,6 +2,7 @@ import { isUuid } from "./contracts";
 export interface SchoolChoice {
   id: string;
   name: string;
+  active?: boolean;
 }
 export interface SchoolEntitlement {
   namespace: "institutional_revision";
@@ -53,6 +54,7 @@ export interface LicenseEvent {
   occurred_at: string;
 }
 export interface LicenseContext {
+  institution_active: boolean;
   operator: boolean;
   role: string | null;
   entitlement: SchoolEntitlement | null;

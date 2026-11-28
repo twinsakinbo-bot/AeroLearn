@@ -485,8 +485,29 @@ export async function verifyInstitutionalLicensing({
     ).rows,
   );
   for (const code of codes) assert.ok(!rawAudit.includes(code));
+  await command("operator", "deactivate_institution", a, {});
+  const inactive = await request("operator", endpoint, null, a);
+  assert.equal(inactive.status, 200);
+  assert.equal(inactive.body.institution_active, false);
+  assert.equal(
+    inactive.body.terms.length,
+    2,
+    "Operator retains historical records",
+  );
+  assert.equal((await request("adminA", endpoint, null, a)).status, 403);
+  assert.equal(
+    (
+      await call("operator", "issue_batch", {
+        id: crypto.randomUUID(),
+        term_id: term.id,
+        quantity: 1,
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      })
+    ).status,
+    403,
+  );
   const summary =
-    "PASS: real Supabase Auth/PostgREST/RLS; two-school isolation; operator-only manual approval/activation; UI draft→approve→activate→bulk issue→single-use redeem; hash-only storage and safe retry; last-seat refusal; formative mock start/submit/scoring/history; suspension and live cohort revocation; explicit offboarding/reclaim; unused batch cancellation; new draft renewal; unchanged retail lifetime access. Responsive operator/admin/learner screenshots at 360px and 1280px. No learner codes in evidence. Synthetic accounts and questions only.\n";
+    "PASS: real Supabase Auth/PostgREST/RLS; two-school isolation; operator-only manual approval/activation; UI draft→approve→activate→bulk issue→single-use redeem; hash-only storage and safe retry; last-seat refusal; formative mock start/submit/scoring/history; suspension and live cohort revocation; explicit offboarding/reclaim; unused batch cancellation; new draft renewal; read-only operator audit after school deactivation; unchanged retail lifetime access. Responsive operator/admin/learner screenshots at 360px and 1280px. No learner codes in evidence. Synthetic accounts and questions only.\n";
   writeFileSync(evidence + "/summary.txt", summary);
   console.log(summary);
 }

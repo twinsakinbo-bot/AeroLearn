@@ -7,7 +7,7 @@ create function institutional_private.licensing_enabled() returns boolean langua
  select exists(select 1 from institutional_private.controls where enabled) and exists(select 1 from institutional_private.licensing_controls where enabled)
 $$;
 create function institutional_private.licensing_manager(org uuid) returns boolean language sql stable security definer set search_path='' as $$
- select institutional_private.licensing_enabled() and exists(select 1 from public.institutions where id=org and active)
+ select institutional_private.licensing_enabled() and exists(select 1 from public.institutions where id=org)
  and (institutional_private.operator() or coalesce(institutional_private.member_role(org)='school_admin',false))
 $$;
 create table public.institutional_terms (
@@ -96,18 +96,18 @@ $$;
 -- Private helpers may not be invoked with another learner's identity by a client.
 revoke all on function institutional_private.entitlement(uuid,uuid) from public,anon,authenticated;
 create function public.institutional_licensing_context(p_institution_id uuid default null) returns jsonb language plpgsql security definer set search_path='' as $$
-declare op boolean; org uuid:=p_institution_id; r text;
+declare op boolean; org uuid:=p_institution_id; r text; school_active boolean;
 begin
  if auth.uid() is null or not institutional_private.licensing_enabled() then raise exception 'Licensing unavailable' using errcode='42501'; end if;
  op:=institutional_private.operator();
  if org is null then
-  return jsonb_build_object('operator',op,'institutions',coalesce((select jsonb_agg(jsonb_build_object('id',i.id,'name',i.name) order by i.name)
-   from public.institutions i where i.active and (op or institutional_private.member_role(i.id) is not null)),'[]'::jsonb));
+  return jsonb_build_object('operator',op,'institutions',coalesce((select jsonb_agg(jsonb_build_object('id',i.id,'name',i.name,'active',i.active) order by i.name)
+   from public.institutions i where op or (i.active and institutional_private.member_role(i.id) is not null)),'[]'::jsonb));
  end if;
- perform 1 from public.institutions where id=org and active;
+ select active into school_active from public.institutions where id=org;
  r:=institutional_private.member_role(org);
  if not found or (not op and r is null) then raise exception 'Forbidden' using errcode='42501'; end if;
- return jsonb_build_object('operator',op,'role',r,'entitlement',institutional_private.entitlement(org,auth.uid()),
+ return jsonb_build_object('operator',op,'role',r,'institution_active',school_active,'entitlement',institutional_private.entitlement(org,auth.uid()),
  'cohorts',coalesce((select jsonb_agg(jsonb_build_object('id',id,'name',name) order by name) from public.school_cohorts where institution_id=org and (op or institutional_private.cohort_access(org,id))),'[]'::jsonb));
 end $$;
 
@@ -281,7 +281,8 @@ begin
  return jsonb_build_object(
  'terms',coalesce((select jsonb_agg(to_jsonb(x) order by x.created_at desc) from (
   select t.*,
-   case when t.state in ('active','suspended','approved') and clock_timestamp()>=t.ends_at then 'expired'
+   case when not exists(select 1 from public.institutions where id=t.institution_id and active) then 'school inactive'
+    when t.state in ('active','suspended','approved') and clock_timestamp()>=t.ends_at then 'expired'
     when t.state='active' and clock_timestamp()<t.starts_at then 'scheduled' else t.state end as effective_state,
    (select count(*) from public.institutional_seats s where s.institution_id=t.institution_id and s.term_id=t.id and s.state='assigned') as assigned,
    (select count(*) from public.institutional_grants g where g.institution_id=t.institution_id and g.term_id=t.id and g.state='suspended') as suspended,

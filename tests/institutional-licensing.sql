@@ -144,6 +144,18 @@ select public.institutional_command('revoke_member','b1000000-0000-4000-8000-000
 select pg_temp.license_login(2);
 select pg_temp.license_denied($q$select public.institutional_licensing_dashboard('b1000000-0000-4000-8000-000000000001')$q$);
 reset role;
+-- Authorized operators retain read-only financial/audit visibility after school deactivation.
+set local role authenticated;
+select pg_temp.license_login(1);
+select public.institutional_command('deactivate_institution','b1000000-0000-4000-8000-000000000001','{}');
+do $$ begin
+ assert public.institutional_licensing_context('b1000000-0000-4000-8000-000000000001')->>'institution_active'='false';
+ assert jsonb_array_length(public.institutional_licensing_dashboard('b1000000-0000-4000-8000-000000000001')->'terms')=3;
+end $$;
+select pg_temp.license_denied($q$select public.institutional_licensing_command('issue_batch','b1000000-0000-4000-8000-000000000001',jsonb_build_object('id',gen_random_uuid(),'term_id','b4000000-0000-4000-8000-000000000009','quantity',1,'expires_at',now()+interval '1 day'))$q$);
+select pg_temp.license_login(5);
+select pg_temp.license_denied($q$select public.institutional_licensing_context('b1000000-0000-4000-8000-000000000001')$q$);
+reset role;
 -- Existing manual retention operation covers codes/events/quotas without touching grants or terms.
 update institutional_private.learner_codes set expires_at=now()-interval '31 days';
 update public.institutional_license_events set occurred_at=now()-interval '181 days';

@@ -47,7 +47,14 @@ try {
  assert.equal(failed.status,503,'Unavailable safeguards must fail closed')
  for(const [path,method] of [['/api/institutional/licensing','GET'],['/api/institutional/licensing','POST'],['/app/institutional','GET']]) {
   const response=await fetch(base+path,{method,headers:{Authorization:'Bearer learner-token','Content-Type':'application/json'},...(method==='POST'?{body:'{}'}:{})})
-  assert.equal(response.status,404,`${method} ${path}: institutional master switch must disable licensing`)
+  if(path==='/app/institutional') {
+   // Next may have streamed the parent layout before notFound(): its HTTP status
+   // can be 200. Verify the actual not-found payload and absence of feature UI.
+   assert.ok([200,404].includes(response.status))
+   const html=await response.text()
+   assert.match(html,/NEXT_HTTP_ERROR_FALLBACK;404|This page could not be found/)
+   assert.doesNotMatch(html,/<h1[^>]*>School licensing<\/h1>/)
+  } else assert.equal(response.status,404,`${method} ${path}: institutional master switch must disable licensing`)
  }
  assert.deepEqual(unexpected,[],'Protected routes reached business data/provider preparation')
  console.log('16 local production HTTP safeguard checks passed; no real accounts, provider calls or email.')

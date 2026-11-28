@@ -110,6 +110,12 @@ export default function LicensingPanel() {
     action: LicensingCommand["action"],
     payload: Record<string, unknown>,
   ) {
+    if (context?.institution_active === false) {
+      setError(
+        "This school is inactive. Historical licensing records are read-only.",
+      );
+      return false;
+    }
     setBusy(true);
     setError("");
     setMessage("");
@@ -221,7 +227,7 @@ export default function LicensingPanel() {
   };
   const old = context?.terms?.find((t) => t.id === renewal);
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
       <header>
         <h1 className="text-2xl font-bold">School licensing</h1>
         <p className="mt-2 text-muted">
@@ -257,6 +263,7 @@ export default function LicensingPanel() {
           {schools.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
+              {s.active === false ? " (inactive)" : ""}
             </option>
           ))}
         </select>
@@ -342,7 +349,16 @@ export default function LicensingPanel() {
         </section>
       )}
       {manager && (
-        <>
+        <fieldset
+          disabled={context?.institution_active === false}
+          className="space-y-6"
+        >
+          {context?.institution_active === false && (
+            <p role="status" className="card p-4">
+              This school is inactive. Historical licensing records are
+              read-only; no school access can be issued or used.
+            </p>
+          )}
           <section className="card space-y-3 p-4">
             <label htmlFor="license-reason" className="field-label">
               Administrative reason for changes
@@ -759,7 +775,7 @@ export default function LicensingPanel() {
               tenant-scoped export for older records.
             </p>
           </section>
-        </>
+        </fieldset>
       )}
       {context?.role === "teacher" && !manager && (
         <p className="card p-4">
@@ -767,6 +783,6 @@ export default function LicensingPanel() {
           payments, issue seats or change entitlements.
         </p>
       )}
-    </main>
+    </div>
   );
 }
