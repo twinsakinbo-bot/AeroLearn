@@ -1,7 +1,7 @@
 /** Independent release acceptance, using only an unlinked disposable Supabase stack. */
 import assert from 'node:assert/strict'
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, appendFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, appendFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { setTimeout as wait } from 'node:timers/promises'
 import { resolve } from 'node:path'
@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import pg from 'pg'
 import { chromium } from '@playwright/test'
 
-const base = 'http://127.0.0.1:4322'
+const base = 'http://127.0.0.1:4324'
 const evidence = resolve(process.env.QA_EVIDENCE || '.qa-evidence')
 const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
 mkdirSync(evidence, { recursive: true })
@@ -52,8 +52,8 @@ async function main() {
   assert.ok(!existsSync('supabase/.temp/project-ref') && !existsSync('.supabase/project.json'), 'QA: Refusing hosted project links')
   assert.ok(readdirSync('.').filter(x => /^\.env(?:\.|$)/.test(x)).every(x => x === '.env.example'), 'QA: Refusing local or production environment files in checkout')
   const cfg = JSON.parse(execFileSync('npx',['--yes','supabase@3.4.0','status','-o','json'],{ encoding:'utf8', stdio:['ignore','pipe','pipe'] }))
-  loopback(cfg.API_URL,'http:','54321')
-  loopback(cfg.DB_URL,'postgresql:','54322')
+  loopback(cfg.API_URL,'http:','59321')
+  loopback(cfg.DB_URL,'postgresql:','59322')
   const local = { auth: { persistSession:false, autoRefreshToken:false, detectSessionInUrl:false } }
   pool = new pg.Pool({ connectionString: cfg.DB_URL })
   const admin = createClient(cfg.API_URL, cfg.SERVICE_ROLE_KEY,local)
@@ -85,7 +85,7 @@ async function main() {
     NEXT_PUBLIC_SUPABASE_ANON_KEY:cfg.ANON_KEY, SUPABASE_SERVICE_ROLE_KEY:cfg.SERVICE_ROLE_KEY,
     INSTITUTIONAL_MVP_ENABLED:'true', MOCK_DRAFT_REVIEW_ENABLED:'false', VERCEL_ENV:'preview' }
   stage='local app startup'
-  app=spawn(process.execPath,['node_modules/next/dist/bin/next','dev','--hostname','127.0.0.1','--port','4322'],{env,stdio:'ignore'})
+  app=spawn(process.execPath,['node_modules/next/dist/bin/next','dev','--hostname','127.0.0.1','--port','4324'],{env,stdio:'ignore'})
   let ready=false
   for(let i=0;i<90;i++){
     if(app.exitCode!==null) break
@@ -298,6 +298,8 @@ async function main() {
     return 'Expected and observed: 1/40 from checkpoint despite blank resumed submission, formative only; identical retry, one durable result and no second reward'
   })
   await guard('trusted question boundary',async()=>{
+    const apiConfig=JSON.parse(readFileSync('supabase/config.jsonc','utf8')).api
+    expected('PostgREST exposed schemas',apiConfig.schemas,['public'])
     const q=(await pool.query(`
       select c.relrowsecurity as rls,
       has_schema_privilege('anon','mock_private','USAGE') as anon_schema,
