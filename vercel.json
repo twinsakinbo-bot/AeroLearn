@@ -27,7 +27,8 @@
       "feat/waec-pilot-readiness": false,
       "integration/p0-a-waec-staging": false,
       "security/p0-a-assessment-hardening": false,
-      "feat/p0-b-institutional-licensing": false
+      "feat/p0-b-institutional-licensing": false,
+      "qa/independent-p0b-pr5-finance": false
     }
   }
 }
