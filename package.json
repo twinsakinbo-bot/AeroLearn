@@ -20,7 +20,9 @@
     "test:plans": "tsx --test tests/plan-flow.test.ts",
     "desktop:dev": "npx tauri dev",
     "desktop:build": "npm --prefix desktop-app run build && npx tauri build",
-    "test:http": "node tests/http-security-check.mjs"
+    "test:http": "node tests/http-security-check.mjs",
+    "test:math-review": "python3 scripts/verify-mathematics-draft.py",
+    "test:pilot:e2e": "node tests/e2e/mock-workflow.mjs"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
@@ -52,6 +54,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@tailwindcss/typography": "^0.5.20",
     "@tauri-apps/cli": "^2.11.4",
     "@types/canvas-confetti": "^1.9.0",
@@ -62,6 +65,7 @@
     "@types/react-dom": "18.3.0",
     "eslint": "8.57.0",
     "eslint-config-next": "15.5.29",
+    "pg": "8.16.3",
     "tsx": "^4.20.6",
     "typescript": "5.9.3"
   },

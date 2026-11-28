@@ -1,0 +1,186 @@
+Local verification evidence — synthetic data only
+
+
+LINT
+
+> aerolearn@1.0.2 lint
+> next lint
+
+`next lint` is deprecated and will be removed in Next.js 16.
+For new projects, use create-next-app to choose your preferred linter.
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+✔ No ESLint warnings or errors
+
+
+TYPECHECK
+
+> aerolearn@1.0.2 typecheck
+> tsc --noEmit
+
+
+
+UNIT
+
+> aerolearn@1.0.2 test
+> tsx --test tests/*.test.ts
+
+✔ tutor lookup requests are parsed without exposing them as answers (1.478508ms)
+✔ expression precedence and right-associative powers (1.486239ms)
+✔ scientific functions use the chosen angle mode (0.37177ms)
+✔ invalid or unsafe input fails clearly (0.590073ms)
+✔ CBT scores normalized option letters and leaves unanswered items at zero (2.226535ms)
+✔ CBT never credits a blank response or a missing answer key (0.269619ms)
+✔ unsubscribe token belongs to one account and email address (1.578025ms)
+✔ study emails include a direct link and one-click mailbox headers (2.959029ms)
+✔ lesson sequences render as accessible maths and a real comparison table (60.959577ms)
+✔ existing dollar maths, links, prose and code samples stay intact (12.911777ms)
+✔ lesson HTML and unsafe maths links cannot inject active markup (6.217992ms)
+✔ replacement retains the lesson ID, references and creation date (1.653427ms)
+✔ a failed replacement leaves the original lesson intact (0.552307ms)
+✔ skip and import-as-new preserve existing lesson content (1.450957ms)
+✔ imports use bounded concurrency while repeated replacements keep input order (12.158163ms)
+Lesson AI attempt 1/6 failed: temporary gateway error
+Lesson AI attempt 2/6 failed: temporary gateway error
+Lesson AI attempt 3/6 failed: temporary gateway error
+Lesson AI attempt 4/6 failed: temporary gateway error
+Lesson AI attempt 5/6 failed: temporary gateway error
+Lesson AI attempt 1/6 failed: gateway unavailable
+Lesson AI attempt 2/6 failed: gateway unavailable
+Lesson AI attempt 3/6 failed: gateway unavailable
+Lesson AI attempt 4/6 failed: gateway unavailable
+Lesson AI attempt 5/6 failed: gateway unavailable
+Lesson AI attempt 6/6 failed: gateway unavailable
+Lesson AI attempt 1/6 failed: gateway failed (429)
+Lesson AI attempt 2/6 failed: gateway failed (429)
+Lesson AI attempt 3/6 failed: gateway failed (429)
+Lesson AI attempt 4/6 failed: gateway failed (429)
+Lesson AI attempt 5/6 failed: gateway failed (429)
+Lesson AI attempt 6/6 failed: gateway failed (429)
+✔ lesson AI retries five times with increasing gaps (4.880743ms)
+✔ lesson AI reports exhaustion after the sixth failure (1.16238ms)
+✔ rate limits wait longer before each retry (0.532908ms)
+✔ availability is board/subject-specific, excludes malformed and draft content (7.300013ms)
+✔ active question projection omits keys/explanations; normalization preserves draft gate (1.858611ms)
+✔ failed question replacement preserves original; successful replacement retains ID (0.610003ms)
+✔ Google and incomplete profiles must choose a purpose and subjects (1.276339ms)
+✔ completed learning setup is preserved for each learning purpose (0.390659ms)
+✔ every purchasable plan unlocks access for its duration (1.056904ms)
+✔ expired and malformed grants do not unlock paid features (0.259655ms)
+✔ a pending receipt grants a pass only to its owner when they need it (0.203591ms)
+✔ redeeming a finite code cannot replace permanent access (0.148189ms)
+✔ outbound fetch pins validated DNS, caps bodies and bounds slow streams (113.903714ms)
+✔ private, mapped, multicast and transition addresses are rejected before connecting (3.548522ms)
+✔ DNS lookup cannot outlive the overall request deadline (30.327001ms)
+✔ OAuth destinations cannot escape the application origin (2.144904ms)
+✔ independent server instances share limits and store only hashed subjects (3.532337ms)
+✔ public abuse controls fail closed on database failure or malformed responses (1.81092ms)
+✔ password reset has the same response for existing, missing and failed-delivery accounts (1.289148ms)
+✔ rejected local-limit requests cannot extend the active window (5.722559ms)
+✔ welcome mail requires a confirmed Auth email and ignores caller-selected recipients (0.681749ms)
+✔ challenge scoring uses stored answers and counts unanswered questions (1.722499ms)
+✔ challenge scoring rejects foreign, missing, and invalid question data (0.331882ms)
+✔ new service worker activation removes old private response caches (2.301425ms)
+✔ password guidance matches the hosted policy (1.345441ms)
+✔ Supabase signup errors identify the field and useful next step (1.078836ms)
+✔ Nigeria calendar day changes at midnight Lagos, not midnight UTC (1.088661ms)
+✔ one visit per day awards one day and one login reward (0.415094ms)
+✔ missed days reset the streak; one freeze covers exactly one missed day (1.307666ms)
+✔ inactive streaks become zero without login and warn on the last day (0.465729ms)
+✔ confirmation email keeps the action link and escapes the recipient (1.043604ms)
+ℹ tests 46
+ℹ suites 0
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1652.486048
+
+
+PLANS
+
+> aerolearn@1.0.2 test:plans
+> tsx --test tests/plan-flow.test.ts
+
+✔ every purchasable plan unlocks access for its duration (1.023935ms)
+✔ expired and malformed grants do not unlock paid features (0.195289ms)
+✔ a pending receipt grants a pass only to its owner when they need it (0.294335ms)
+✔ redeeming a finite code cannot replace permanent access (0.151083ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 215.141763
+
+
+MATH
+Q1: Algebra: linear equations — calculation and option C verified
+Q2: Quadratic equations — calculation and option B verified
+Q3: Algebra: direct variation — calculation and option D verified
+Q4: Plane geometry: area of a trapezium — calculation and option A verified
+Q5: Trigonometry: right-angled triangles — calculation and option C verified
+Q6: Probability: sampling without replacement — calculation and option B verified
+Q7: Statistics: arithmetic mean — calculation and option D verified
+Q8: Coordinate geometry: distance between two points — calculation and option A verified
+Answer key: C, B, D, A, C, B, D, A
+SHA-256: 00dd51de285a183ff37366c9df81bf3ce931c79b306884ef8cbc2a9c7b350240
+Eight independent calculation checks passed. Teacher approval: PENDING; publication: DRAFT.
+
+
+HTTP
+
+> aerolearn@1.0.2 test:http
+> node tests/http-security-check.mjs
+
+102 missing/invalid-token HTTP authorization checks passed.
+
+
+E2E
+
+> aerolearn@1.0.2 test:pilot:e2e
+> node tests/e2e/mock-workflow.mjs
+
+1280px: unavailable bank, draft 8-question activity, answer, cancel/confirm, failed-save retry, 1/8 score, all explanations and history reload passed.
+360px: unavailable bank, draft 8-question activity, answer, cancel/confirm, failed-save retry, 1/8 score, all explanations and history reload passed.
+Browser 40-question Economics submit/review and draft timer-expiry auto-submit passed.
+40-question Economics: 40-minute timer, one answer, concurrent submissions, 1/40 score, one reward/progress update, foreign denial and independent short-mode allowance passed.
+
+
+DATABASE (tail)
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ d0000000-0000-4000-8000-000000000002
+(1 row)
+
+              set_config              
+--------------------------------------
+ d0000000-0000-4000-8000-000000000001
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+Mock sessions: snapshot, scoring, blanks, idempotency, atomic progress, weekly allowance, draft exclusion and result RLS passed.
+Database migration and access checks passed.
+
+Production build: exited 0; Next.js routes compiled successfully.

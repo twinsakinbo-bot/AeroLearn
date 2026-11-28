@@ -85,3 +85,8 @@ pids
 
 .next/
 public/downloads/*.exe
+
+# Local test output and Supabase cache
+supabase/.temp/
+playwright-report/
+test-results/
