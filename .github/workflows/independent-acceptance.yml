@@ -1,0 +1,51 @@
+name: Independent AeroLearn acceptance
+on:
+  push:
+    branches: [qa/independent-acceptance]
+permissions:
+  contents: read
+concurrency:
+  group: aerolearn-independent-acceptance
+  cancel-in-progress: false
+jobs:
+  linux-local:
+    if: github.repository == 'twinsakinbo-bot/AeroLearn' && !github.event.deleted
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      QA_EVIDENCE: ${{ runner.temp }}/aerolearn-acceptance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Start isolated Supabase
+        run: npx --yes supabase@3.4.0 start -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/supabase-start-private.log" 2>&1
+      - name: Run independent acceptance
+        run: node tests/qa/independent-acceptance.mjs
+      - name: Check evidence size
+        id: evidence
+        if: always()
+        shell: bash
+        run: |
+          if [ -d "$QA_EVIDENCE" ] && [ "$(du -sb "$QA_EVIDENCE" | cut -f1)" -le 10485760 ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'No evidence upload: missing or larger than 10 MiB.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save synthetic evidence
+        if: always() && steps.evidence.outputs.ready == 'true' && contains(github.event.head_commit.message, '[qa-artifacts-ok]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: aerolearn-independent-linux-${{ github.run_id }}
+          path: ${{ env.QA_EVIDENCE }}
+          retention-days: 1
+          if-no-files-found: error
+      - name: Stop isolated Supabase
+        if: always()
+        run: npx --yes supabase@3.4.0 stop > "$RUNNER_TEMP/supabase-stop-private.log" 2>&1

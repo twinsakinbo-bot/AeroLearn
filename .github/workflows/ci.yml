@@ -2,6 +2,7 @@ name: Verify AeroLearn
 
 on:
   push:
+    branches-ignore: [qa/independent-acceptance]
   pull_request:
 
 jobs:
