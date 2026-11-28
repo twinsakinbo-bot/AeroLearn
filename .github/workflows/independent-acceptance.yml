@@ -1,0 +1,41 @@
+name: Independent AeroLearn P0-B acceptance
+on:
+  push:
+    branches: [qa/independent-p0b-pr5]
+permissions:
+  contents: read
+concurrency:
+  group: aerolearn-independent-acceptance
+  cancel-in-progress: false
+jobs:
+  linux-local:
+    if: github.repository == 'twinsakinbo-bot/AeroLearn' && !github.event.deleted
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify pinned application and QA-only diff
+        env:
+          APP_SHA: e552e16b2b2b00ad370feb6d35c9970a22428ecf
+        run: |
+          git merge-base --is-ancestor "$APP_SHA" HEAD
+          git diff --exit-code "$APP_SHA" HEAD -- . ':(exclude).github/workflows/ci.yml' ':(exclude).github/workflows/independent-acceptance.yml' ':(exclude)tests/qa/independent-acceptance.mjs' ':(exclude)vercel.json'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Start isolated Supabase
+        run: npx --yes supabase@3.4.0 start -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/supabase-start-private.log" 2>&1
+      - name: Run independent acceptance
+        env:
+          QA_EVIDENCE: ${{ runner.temp }}/aerolearn-acceptance
+        run: node tests/qa/independent-acceptance.mjs
+      - name: Stop isolated Supabase
+        if: always()
+        run: npx --yes supabase@3.4.0 stop > "$RUNNER_TEMP/supabase-stop-private.log" 2>&1
