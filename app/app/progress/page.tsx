@@ -79,7 +79,7 @@ function progressFor(type: string, stats: Stats) {
 }
 
 /**
- * Profile counters and saved quiz results. Practice writes its totals directly
+ * Profile counters and saved quiz results. Server reward operations update totals directly
  * to the profile; the old nested `studyStats` object is only initialised, never
  * incremented, so reading it showed a false zero for active students.
  */
@@ -193,7 +193,12 @@ export default function ProgressPage() {
               {result.mode === "draft_review" ? " · Draft teacher review (excluded from totals)" : ""}
             </summary>
             <p className="mt-2 text-caption text-muted">
-              {result.totalQuestions} questions · {result.durationSeconds / 60} minutes allowed
+              {result.totalQuestions} questions · {result.durationSeconds / 60} minutes allowed ·{" "}
+              {result.assessmentType === "trusted"
+                ? result.reportEligible
+                  ? "Trusted timed assessment"
+                  : "Expired assessment: excluded from reports"
+                : "Formative revision: not institutional assessment evidence"}
             </p>
             <ol className="mt-4 space-y-5">
               {result.questions.map((q, index) => (

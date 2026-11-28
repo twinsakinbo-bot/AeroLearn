@@ -1,0 +1,169 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@tailwindcss/typography": {
+      "name": "@tailwindcss/typography",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "postcss-selector-parser"
+      ],
+      "effects": [],
+      "range": "<=0.0.0-insiders.fda8ce5 || >=0.5.5",
+      "nodes": [
+        "node_modules/@tailwindcss/typography"
+      ],
+      "fixAvailable": {
+        "name": "@tailwindcss/typography",
+        "version": "0.5.4",
+        "isSemVerMajor": true
+      }
+    },
+    "katex": {
+      "name": "katex",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1241206,
+          "name": "katex",
+          "dependency": "katex",
+          "title": "KaTeX: Existing prototype pollution can bypass trust restrictions",
+          "url": "https://github.com/advisories/GHSA-238p-pmpm-9mq7",
+          "severity": "low",
+          "cwe": [
+            "CWE-807"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": ">=0.11.0 <0.18.2"
+        }
+      ],
+      "effects": [
+        "micromark-extension-math",
+        "rehype-katex"
+      ],
+      "range": "0.11.0 - 0.18.1",
+      "nodes": [
+        "node_modules/katex"
+      ],
+      "fixAvailable": {
+        "name": "rehype-katex",
+        "version": "1.2.0",
+        "isSemVerMajor": true
+      }
+    },
+    "micromark-extension-math": {
+      "name": "micromark-extension-math",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        "katex"
+      ],
+      "effects": [
+        "remark-math"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/micromark-extension-math"
+      ],
+      "fixAvailable": {
+        "name": "remark-math",
+        "version": "3.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "postcss-selector-parser": {
+      "name": "postcss-selector-parser",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1243379,
+          "name": "postcss-selector-parser",
+          "dependency": "postcss-selector-parser",
+          "title": "PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion",
+          "url": "https://github.com/advisories/GHSA-rj75-hqrm-r3gf",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-400",
+            "CWE-407"
+          ],
+          "cvss": {
+            "score": 5.9,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<6.1.5"
+        }
+      ],
+      "effects": [
+        "@tailwindcss/typography"
+      ],
+      "range": "<6.1.5",
+      "nodes": [
+        "node_modules/@tailwindcss/typography/node_modules/postcss-selector-parser"
+      ],
+      "fixAvailable": {
+        "name": "@tailwindcss/typography",
+        "version": "0.5.4",
+        "isSemVerMajor": true
+      }
+    },
+    "rehype-katex": {
+      "name": "rehype-katex",
+      "severity": "low",
+      "isDirect": true,
+      "via": [
+        "katex"
+      ],
+      "effects": [],
+      "range": ">=2.0.0",
+      "nodes": [
+        "node_modules/rehype-katex"
+      ],
+      "fixAvailable": {
+        "name": "rehype-katex",
+        "version": "1.2.0",
+        "isSemVerMajor": true
+      }
+    },
+    "remark-math": {
+      "name": "remark-math",
+      "severity": "low",
+      "isDirect": true,
+      "via": [
+        "micromark-extension-math"
+      ],
+      "effects": [],
+      "range": ">=4.0.0",
+      "nodes": [
+        "node_modules/remark-math"
+      ],
+      "fixAvailable": {
+        "name": "remark-math",
+        "version": "3.0.1",
+        "isSemVerMajor": true
+      }
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 4,
+      "moderate": 2,
+      "high": 0,
+      "critical": 0,
+      "total": 6
+    },
+    "dependencies": {
+      "prod": 614,
+      "dev": 245,
+      "optional": 119,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 912
+    }
+  }
+}

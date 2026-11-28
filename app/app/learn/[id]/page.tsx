@@ -1,20 +1,11 @@
 "use client"
+import { retailReward } from "@/lib/retail-rewards"
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { auth, onAuthStateChanged } from "@/lib/auth"
-import { arrayUnion, db, doc, getDoc, increment, updateDoc } from "@/lib/db"
-import {
-  BookOpen,
-  Check,
-  CheckCircle2,
-  Lightbulb,
-  Loader2,
-  PenTool,
-  Sparkles,
-  Video,
-  X,
-} from "lucide-react"
+import { db, doc, getDoc } from "@/lib/db"
+import { BookOpen, Check, CheckCircle2, Lightbulb, Loader2, PenTool, Sparkles, Video, X } from "lucide-react"
 import { LearningMarkdown } from "@/components/learn/LearningMarkdown"
 import "katex/dist/katex.min.css"
 
@@ -194,14 +185,8 @@ export default function LessonViewPage() {
 
     setCompleting(true)
     try {
-      // Server-resolved so two tabs cannot overwrite each other's totals, and
-      // arrayUnion makes a second click a no-op rather than a duplicate entry.
-      await updateDoc(doc(db, "users", user.uid), {
-        completedLessons: arrayUnion(lesson.id),
-        subjectsStudied: arrayUnion(lesson.subject),
-        xp: increment(XP_PER_LESSON),
-        coins: increment(COINS_PER_LESSON),
-      })
+      // Server validates the lesson and awards completion once across tabs/retries.
+      await retailReward("lesson", { lesson: lesson.id })
       setDone(true)
     } catch (err) {
       console.error("Failed to record the lesson:", err)
@@ -225,12 +210,7 @@ export default function LessonViewPage() {
         eyebrow={`${lesson.subject} · ${lesson.classLevel} · ${lesson.term}`}
         title={lesson.topicTitle}
         actions={
-          <button
-            type="button"
-            onClick={makeFlashcards}
-            disabled={makingCards}
-            className="btn-secondary"
-          >
+          <button type="button" onClick={makeFlashcards} disabled={makingCards} className="btn-secondary">
             {makingCards ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
@@ -266,9 +246,7 @@ export default function LessonViewPage() {
 
       <Section icon={BookOpen} title="Notes">
         <div className={MARKDOWN_PROSE}>
-          <LearningMarkdown>
-            {lesson.content}
-          </LearningMarkdown>
+          <LearningMarkdown>{lesson.content}</LearningMarkdown>
         </div>
       </Section>
 
@@ -276,17 +254,12 @@ export default function LessonViewPage() {
         <Section icon={Lightbulb} title="Worked examples">
           <ul className="space-y-4">
             {lesson.examples.map((example, index) => (
-              <li
-                key={index}
-                className="rounded-lg border border-accent/25 bg-accent/[0.06] p-4 sm:p-5"
-              >
+              <li key={index} className="rounded-lg border border-accent/25 bg-accent/[0.06] p-4 sm:p-5">
                 <p className="mb-2 text-overline uppercase text-subtle">
                   {example.title || `Example ${index + 1}`}
                 </p>
                 <div className={MARKDOWN_PROSE}>
-                  <LearningMarkdown>
-                    {example.content}
-                  </LearningMarkdown>
+                  <LearningMarkdown>{example.content}</LearningMarkdown>
                 </div>
               </li>
             ))}
@@ -463,4 +436,3 @@ export default function LessonViewPage() {
     </article>
   )
 }
-

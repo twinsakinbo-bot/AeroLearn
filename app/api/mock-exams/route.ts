@@ -100,20 +100,25 @@ export async function POST(request: Request) {
       return reply({ error: "Invalid request." }, 400)
     }
     if (!body || typeof body !== "object") return reply({ error: "Invalid request." }, 400)
-    if (body.action === "submit") {
+    if (body.action === "submit" || body.action === "checkpoint") {
       if (
         typeof body.attemptId !== "string" ||
-        !/^[0-9a-f-]{36}$/i.test(body.attemptId) ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.attemptId) ||
         !body.answers ||
         typeof body.answers !== "object" ||
         Array.isArray(body.answers)
       )
         return reply({ error: "Invalid submission." }, 400)
-      const { data, error } = await getSupabaseAdmin().rpc("submit_mock_attempt", {
-        p_uid: gate.uid,
-        p_attempt: body.attemptId,
-        p_answers: body.answers,
-      })
+      const { data, error } = await getSupabaseAdmin().rpc(
+        body.action === "checkpoint" ? "checkpoint_mock_attempt" : "submit_mock_attempt",
+        {
+          p_uid: gate.uid,
+          p_attempt: body.attemptId,
+          p_answers: body.answers,
+        },
+      )
+      if (error && error.code === "22023" && body.action === "checkpoint")
+        return reply({ error: "The server answer-backup deadline has passed." }, 409)
       if (error)
         return reply(
           {
@@ -132,7 +137,10 @@ export async function POST(request: Request) {
       !["full", "revision", "draft_review"].includes(String(body.mode))
     )
       return reply({ error: "Invalid exam request." }, 400)
-    if (typeof body.requestId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.requestId))
+    if (
+      typeof body.requestId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId)
+    )
       return reply({ error: "Missing start request identity." }, 400)
     const exam = canonicalExam(body.exam),
       mode = body.mode as "full" | "revision" | "draft_review"

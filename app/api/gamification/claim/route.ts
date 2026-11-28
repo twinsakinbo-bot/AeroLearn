@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getSupabaseAdmin } from "@/lib/supabase/admin"
 import { requireUser } from "@/lib/api-auth"
 import { getAdminDb } from "@/lib/db-admin"
 
@@ -7,35 +8,36 @@ export async function POST(req: NextRequest) {
   if (!gate.ok) return gate.response
   const uid = gate.uid
   try {
-    
     const body = await req.json()
     const type = body.type // 'xp' or 'lessons'
 
-    if (type !== 'xp' && type !== 'lessons') {
+    if (type !== "xp" && type !== "lessons") {
       return NextResponse.json({ error: "Invalid claim type" }, { status: 400 })
     }
 
     const db = getAdminDb()
     const userRef = db.collection("users").doc(uid)
-    
+
     const result = await db.runTransaction(async (transaction) => {
       const userDoc = await transaction.get(userRef)
       if (!userDoc.exists) {
         throw new Error("User does not exist")
       }
-      
+
       const data = userDoc.data()!
-      const xp = data.xp || 0
-      const completedLessons = data.completedLessons?.length || 0
+      const verified = await getSupabaseAdmin().rpc("verified_reward_totals", { p_uid: uid })
+      if (verified.error) throw verified.error
+      const xp = verified.data.xp
+      const completedLessons = verified.data.lessons
       const quests = data.quests || { xpTier: 1, lessonsTier: 1 }
-      
+
       const xpTarget = quests.xpTier * 50
       const lessonsTarget = quests.lessonsTier * 5
-      
+
       let rewardCoins = 0
       const newQuests = { ...quests }
-      
-      if (type === 'xp') {
+
+      if (type === "xp") {
         if (xp < xpTarget) {
           throw new Error("XP target not met")
         }
@@ -48,19 +50,19 @@ export async function POST(req: NextRequest) {
         rewardCoins = quests.lessonsTier * 30
         newQuests.lessonsTier += 1
       }
-      
+
       const newCoins = (data.coins || 0) + rewardCoins
-      
+
       transaction.update(userRef, {
         quests: newQuests,
-        coins: newCoins
+        coins: newCoins,
       })
-      
+
       return {
         success: true,
         quests: newQuests,
         coins: newCoins,
-        reward: rewardCoins
+        reward: rewardCoins,
       }
     })
 

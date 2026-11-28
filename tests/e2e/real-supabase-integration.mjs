@@ -11,8 +11,8 @@ const cfg = JSON.parse(
     encoding: "utf8",
   }),
 )
-assert.match(cfg.API_URL, /^http:\/\/127\.0\.0\.1:54321$/)
-assert.match(cfg.DB_URL, /@127\.0\.0\.1:54322\//)
+assert.match(cfg.API_URL, /^http:\/\/127\.0\.0\.1:59321$/)
+assert.match(cfg.DB_URL, /@127\.0\.0\.1:59322\//)
 const pool = new pg.Pool({ connectionString: cfg.DB_URL })
 const admin = createClient(cfg.API_URL, cfg.SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -20,7 +20,7 @@ const admin = createClient(cfg.API_URL, cfg.SERVICE_ROLE_KEY, {
 const actors = {}
 let app, browser
 let logs = ""
-const base = "http://127.0.0.1:4322"
+const base = "http://127.0.0.1:4324"
 const evidence = "docs/evidence/integration"
 mkdirSync(evidence, { recursive: true })
 const ok = ({ data, error }) => {
@@ -28,19 +28,10 @@ const ok = ({ data, error }) => {
   return data
 }
 try {
-  for (const name of [
-    "operator",
-    "adminA",
-    "adminB",
-    "teacher",
-    "learner",
-    "retail",
-  ]) {
+  for (const name of ["operator", "adminA", "adminB", "teacher", "learner", "retail"]) {
     const email = `integration-${name.toLowerCase()}@example.invalid`,
       password = crypto.randomUUID() + "!aA9"
-    const existing = ok(await admin.auth.admin.listUsers()).users.find(
-      (u) => u.email === email,
-    )
+    const existing = ok(await admin.auth.admin.listUsers()).users.find((u) => u.email === email)
     const user = ok(
       existing
         ? await admin.auth.admin.updateUserById(existing.id, { password })
@@ -50,38 +41,30 @@ try {
             email_confirm: true,
           }),
     ).user
-    await pool.query(
-      "update public.users set data=data || $2::jsonb where id=$1",
-      [
-        user.id,
-        JSON.stringify({
-          role: name === "operator" ? "admin" : "student",
-          onboardingCompleted: true,
-          learningMode: "exam",
-          examType: "WAEC",
-          subjects: ["Economics"],
-          subscription: "free",
-          xp: 0,
-          coins: 0,
-          inventory: [],
-          displayName: "Synthetic " + name,
-        }),
-      ],
-    )
+    await pool.query("update public.users set data=data || $2::jsonb where id=$1", [
+      user.id,
+      JSON.stringify({
+        role: name === "operator" ? "admin" : "student",
+        onboardingCompleted: true,
+        learningMode: "exam",
+        examType: "WAEC",
+        subjects: ["Economics"],
+        subscription: "free",
+        xp: 0,
+        coins: 0,
+        inventory: [],
+        displayName: "Synthetic " + name,
+      }),
+    ])
     const client = createClient(cfg.API_URL, cfg.ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
-    const session = ok(
-      await client.auth.signInWithPassword({ email, password }),
-    ).session
+    const session = ok(await client.auth.signInWithPassword({ email, password })).session
     assert.equal(ok(await client.auth.getUser()).user.id, user.id)
     actors[name] = { id: user.id, client, session }
   }
   await pool.query("update institutional_private.controls set enabled=true")
-  await pool.query(
-    "insert into institutional_private.operators(user_id) values($1)",
-    [actors.operator.id],
-  )
+  await pool.query("insert into institutional_private.operators(user_id) values($1)", [actors.operator.id])
   const command = async (name, action, org, payload) =>
     ok(
       await actors[name].client.rpc("institutional_command", {
@@ -114,9 +97,7 @@ try {
     })
     actors[name].membership = accepted.id
   }
-  const cohort = (
-    await command("adminA", "create_cohort", a, { name: "Synthetic SS3" })
-  ).id
+  const cohort = (await command("adminA", "create_cohort", a, { name: "Synthetic SS3" })).id
   const learner = (
     await command("operator", "enroll_learner", a, {
       user_id: actors.learner.id,
@@ -128,15 +109,8 @@ try {
       membership_id,
       cohort_id: cohort,
     })
-  assert.equal(
-    ok(await actors.adminB.client.from("institutions").select("*").eq("id", a))
-      .length,
-    0,
-  )
-  assert.equal(
-    ok(await actors.teacher.client.from("school_cohorts").select("*")).length,
-    1,
-  )
+  assert.equal(ok(await actors.adminB.client.from("institutions").select("*").eq("id", a)).length, 0)
+  assert.equal(ok(await actors.teacher.client.from("school_cohorts").select("*")).length, 1)
   assert.ok(
     (
       await actors.teacher.client.rpc("institutional_command", {
@@ -147,21 +121,11 @@ try {
     ).error,
   )
   assert.equal(
-    ok(
-      await actors.retail.client
-        .from("public_profiles")
-        .select("id")
-        .eq("id", actors.learner.id),
-    ).length,
+    ok(await actors.retail.client.from("public_profiles").select("id").eq("id", actors.learner.id)).length,
     0,
   )
   assert.equal(
-    ok(
-      await actors.teacher.client
-        .from("users")
-        .select("id")
-        .eq("id", actors.learner.id),
-    ).length,
+    ok(await actors.teacher.client.from("users").select("id").eq("id", actors.learner.id)).length,
     0,
   )
   await command("adminA", "revoke_member", a, { id: actors.teacher.membership })
@@ -180,33 +144,22 @@ try {
   )
   // Invented software fixtures only; reviewed Mathematics drafts stay out of bank.
   for (let i = 1; i <= 40; i++)
-    await pool.query(
-      "insert into public.practice_questions(id,data) values($1,$2)",
-      [
-        `integration-econ-${i}`,
-        {
-          exam: "WAEC",
-          subject: "Economics",
-          year: 2026,
-          question: `Synthetic workflow item ${i}: choose Correct`,
-          options: { A: "Correct", B: "Other B", C: "Other C", D: "Other D" },
-          correctAnswer: "A",
-          explanation:
-            "Synthetic test explanation: A is explicitly labelled Correct.",
-          source: "Synthetic software fixture; not teaching content",
-        },
-      ],
-    )
+    await pool.query("insert into public.practice_questions(id,data) values($1,$2)", [
+      `integration-econ-${i}`,
+      {
+        exam: "WAEC",
+        subject: "Economics",
+        year: 2026,
+        question: `Synthetic workflow item ${i}: choose Correct`,
+        options: { A: "Correct", B: "Other B", C: "Other C", D: "Other D" },
+        correctAnswer: "A",
+        explanation: "Synthetic test explanation: A is explicitly labelled Correct.",
+        source: "Synthetic software fixture; not teaching content",
+      },
+    ])
   app = spawn(
     process.execPath,
-    [
-      "node_modules/next/dist/bin/next",
-      "dev",
-      "--hostname",
-      "127.0.0.1",
-      "--port",
-      "4322",
-    ],
+    ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", "4324"],
     {
       stdio: ["ignore", "pipe", "pipe"],
       env: {
@@ -224,8 +177,7 @@ try {
       },
     },
   )
-  for (const stream of [app.stdout, app.stderr])
-    stream.on("data", (x) => (logs = (logs + x).slice(-20000)))
+  for (const stream of [app.stdout, app.stderr]) stream.on("data", (x) => (logs = (logs + x).slice(-20000)))
   for (let i = 0; i < 120; i++) {
     try {
       if ((await fetch(base)).ok) break
@@ -244,10 +196,7 @@ try {
     })
     return { status: r.status, body: await r.json() }
   }
-  assert.equal(
-    (await request("adminB", "/api/institutional", null, a)).status,
-    403,
-  )
+  assert.equal((await request("adminB", "/api/institutional", null, a)).status, 403)
   assert.equal((await request("learner", "/api/ai-quiz", {})).status, 403)
   assert.equal(
     (
@@ -271,15 +220,8 @@ try {
   const first = await request("retail", "/api/mock-exams", start)
   assert.equal(first.status, 200, JSON.stringify(first))
   assert.equal(first.body.questions.length, 40)
-  assert.equal(
-    (await request("retail", "/api/mock-exams", start)).body.id,
-    first.body.id,
-  )
-  assert.ok(
-    first.body.questions.every(
-      (q) => !("correctAnswer" in q) && !("explanation" in q),
-    ),
-  )
+  assert.equal((await request("retail", "/api/mock-exams", start)).body.id, first.body.id)
+  assert.ok(first.body.questions.every((q) => !("correctAnswer" in q) && !("explanation" in q)))
   const submission = {
     action: "submit",
     attemptId: first.body.id,
@@ -290,17 +232,9 @@ try {
     request("retail", "/api/mock-exams", submission),
   ])
   assert.ok(
-    saved.every(
-      (x) =>
-        x.status === 200 &&
-        x.body.result.score === 1 &&
-        x.body.result.totalQuestions === 40,
-    ),
+    saved.every((x) => x.status === 200 && x.body.result.score === 1 && x.body.result.totalQuestions === 40),
   )
-  assert.equal(
-    (await request("adminB", "/api/mock-exams", submission)).status,
-    403,
-  )
+  assert.equal((await request("adminB", "/api/mock-exams", submission)).status, 403)
   assert.equal(
     ok(
       await actors.adminB.client
@@ -311,26 +245,116 @@ try {
     0,
   )
   const profile = ok(
-    await actors.retail.client
-      .from("users")
-      .select("data")
-      .eq("id", actors.retail.id)
-      .single(),
+    await actors.retail.client.from("users").select("data").eq("id", actors.retail.id).single(),
   ).data
   assert.equal(profile.totalQuestionsAnswered, 40)
   assert.equal(profile.totalQuestionsCorrect, 1)
   assert.equal(profile.xp, 5)
+  // Real API and PostgREST security boundaries, synthetic content only.
+  const exposed = ok(await actors.retail.client.from("practice_questions").select("data").limit(1))
+  assert.ok(exposed[0].data.correctAnswer, "Public formative keys must be acknowledged")
+  const rpcExposed = ok(await actors.retail.client.rpc("doc_query", { p_table: "practice_questions" }))
+  assert.ok(
+    rpcExposed.some((q) => q.data.correctAnswer),
+    "Document reads expose revision keys",
+  )
+  assert.ok(
+    (await actors.retail.client.schema("mock_private").from("assessment_questions").select("*")).error,
+  )
+  assert.ok(
+    (
+      await actors.retail.client.rpc("retail_reward", {
+        p_uid: actors.retail.id,
+        p_action: "lesson",
+        p_payload: {},
+      })
+    ).error,
+  )
+  const privateQuestion = {
+    exam: "WAEC",
+    subject: "Economics",
+    publicationStatus: "approved",
+    question: "Synthetic hidden assessment",
+    options: { A: "One", B: "Two", C: "Three", D: "Four" },
+    correctAnswer: "B",
+    explanation: "Private test solution",
+  }
+  await pool.query("insert into mock_private.assessment_questions(id,data) values($1,$2)", [
+    "real-private-key",
+    privateQuestion,
+  ])
+  const trusted = ok(
+    await admin.rpc("start_mock_attempt", {
+      p_uid: actors.learner.id,
+      p_exam: "WAEC",
+      p_subjects: ["Economics"],
+      p_mode: "trusted",
+      p_questions: [{ ...privateQuestion, id: "real-private-key" }],
+      p_pro: true,
+    }),
+  )
+  assert.equal(
+    (
+      await request("learner", "/api/mock-exams", {
+        action: "checkpoint",
+        attemptId: trusted.id,
+        answers: { "real-private-key": "B" },
+      })
+    ).status,
+    200,
+  )
+  await pool.query(
+    "update mock_private.attempts set started_at=clock_timestamp()-interval '70 seconds' where id=$1",
+    [trusted.id],
+  )
+  assert.equal(
+    (
+      await request("learner", "/api/mock-exams", {
+        action: "checkpoint",
+        attemptId: trusted.id,
+        answers: { "real-private-key": "A" },
+      })
+    ).status,
+    409,
+  )
+  const recovered = await request("learner", "/api/mock-exams", {
+    action: "submit",
+    attemptId: trusted.id,
+    answers: { "real-private-key": "A" },
+  })
+  assert.equal(recovered.body.result.score, 1)
+  assert.equal(recovered.body.result.timing, "recovered")
+  assert.equal(recovered.body.result.reportEligible, true)
+  const sessionId = crypto.randomUUID()
+  ok(
+    await admin.rpc("register_practice_session", {
+      p_uid: actors.adminB.id,
+      p_id: sessionId,
+      p_questions: [{ id: "q1", subject: "Economics", correctAnswer: "B" }],
+    }),
+  )
+  const reward = { action: "practice", payload: { session: sessionId, question: "q1", answer: "B" } }
+  assert.equal((await request("adminB", "/api/gamification/reward", reward)).body.xp, 10)
+  assert.equal((await request("adminB", "/api/gamification/reward", reward)).body.duplicate, true)
+  assert.equal((await request("retail", "/api/gamification/reward", reward)).status, 400)
+  assert.ok(
+    (
+      await actors.adminB.client
+        .from("users")
+        .update({ data: { coins: 99999 } })
+        .eq("id", actors.adminB.id)
+    ).error,
+  )
+  console.log(
+    "Real PostgREST key exposure/private denial, deadline checkpoint recovery and validated retail reward API passed.",
+  )
   browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] })
   for (const width of [360, 1280]) {
     const ctx = await browser.newContext({ viewport: { width, height: 900 } })
     await ctx.addCookies([
       {
         name: "sb-127-auth-token",
-        value:
-          "base64-" +
-          Buffer.from(JSON.stringify(actors.retail.session)).toString(
-            "base64url",
-          ),
+        value: "base64-" + Buffer.from(JSON.stringify(actors.retail.session)).toString("base64url"),
         domain: "127.0.0.1",
         path: "/",
       },
@@ -338,24 +362,11 @@ try {
     const page = await ctx.newPage()
     page.setDefaultTimeout(60000)
     await page.goto(base + "/app/progress")
-    await page
-      .getByText("WAEC · Economics · 1/40", { exact: false })
-      .first()
-      .waitFor()
+    await page.getByText("WAEC · Economics · 1/40", { exact: false }).first().waitFor()
     await page.reload()
-    await page
-      .getByText("WAEC · Economics · 1/40", { exact: false })
-      .first()
-      .click()
-    await page
-      .getByText("Synthetic test explanation:", { exact: false })
-      .first()
-      .waitFor()
-    assert.ok(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    )
+    await page.getByText("WAEC · Economics · 1/40", { exact: false }).first().click()
+    await page.getByText("Synthetic test explanation:", { exact: false }).first().waitFor()
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     await page.screenshot({
       path: `${evidence}/real-history-${width}.png`,
       fullPage: true,

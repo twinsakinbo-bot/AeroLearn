@@ -85,7 +85,7 @@ export function publicMockQuestion(q: MockQuestion): StoredQuestion {
 export interface MockResult {
   attemptId: string
   source: "mock_verified" | "mock_preview"
-  mode: MockMode
+  mode: MockMode | "trusted"
   exam: string
   subjects: string[]
   score: number
@@ -93,5 +93,8 @@ export interface MockResult {
   questions: MockQuestion[]
   answers: Record<string, OptionLetter>
   durationSeconds: number
+  timing?: "on_time" | "recovered" | "expired"
+  assessmentType?: "formative" | "trusted"
+  reportEligible?: boolean
   elapsedSeconds: number
 }

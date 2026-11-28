@@ -18,7 +18,7 @@ test('disabled and unauthenticated requests never create a database client',asyn
 })
 test('real Supabase HTTP transport uses caller token, validates school context, sanitizes errors and disables caching',async()=>{
  const calls: {path:string;auth:string|undefined;body:string}[]=[]
- let rejectAuth=false; let rejectCommand=false; let hideSchool=false
+ let rejectQuota=false; let rejectAuth=false; let rejectCommand=false; let hideSchool=false
  const server=http.createServer(async(req,res)=>{
   let body=''; for await (const chunk of req) body+=chunk
   calls.push({path:req.url!,auth:req.headers.authorization,body})
@@ -27,7 +27,7 @@ test('real Supabase HTTP transport uses caller token, validates school context, 
    res.statusCode=rejectAuth?401:200;res.end(JSON.stringify(rejectAuth?{message:'invalid token'}:{id:a,email:'synthetic@example.invalid',aud:'authenticated'}));return
   }
   if(req.url?.startsWith('/rest/v1/rpc/institutional_command')) {
-   res.statusCode=rejectCommand?403:200;res.end(JSON.stringify(rejectCommand?{code:'42501',message:'private token and schema details'}:{id:b}));return
+   res.statusCode=rejectQuota?429:rejectCommand?403:200;res.end(JSON.stringify(rejectQuota?{code:'54000',message:'private limit details'}:rejectCommand?{code:'42501',message:'private token and schema details'}:{id:b}));return
   }
   if(req.url?.startsWith('/rest/v1/institutions')) {res.end(JSON.stringify(hideSchool?[]:[{id:a,name:'Synthetic school',active:true,created_at:'2026-01-01'}]));return}
   res.end('[]')
@@ -49,6 +49,10 @@ test('real Supabase HTTP transport uses caller token, validates school context, 
   rejectCommand=true
   response=await institutionalHttp(request(),config)
   assert.equal(response.status,403);assert.doesNotMatch(await response.text(),/private token|schema/)
+  rejectQuota=true
+  response=await institutionalHttp(request(),config)
+  assert.equal(response.status,429);assert.match(await response.text(),/capacity limit/)
+  rejectQuota=false
   rejectAuth=true;calls.length=0
   assert.equal((await institutionalHttp(request(),config)).status,401)
   assert.equal(calls.length,1)
